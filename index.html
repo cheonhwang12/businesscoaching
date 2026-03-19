@@ -5318,6 +5318,7 @@
         }
         /* 페이지 하단 여백 추가 (네비게이션 바에 가려지지 않도록) */
         body {
+          padding-bottom: 56px;
         }
       }
     </style>
@@ -5518,3 +5519,142 @@
     </button>
 
     <!-- Top 바 (모바일) -->
+    <div id="topBarMobile" class="top-bar-mobile" aria-label="맨 위로 이동 바">
+      <div class="top-bar-mobile-content">
+        <button
+          id="topBarAction"
+          class="top-bar-mobile-action"
+          aria-label="맨 위로 이동"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="18 15 12 9 6 15"></polyline>
+          </svg>
+          <span>맨 위로</span>
+        </button>
+        <button
+          id="topBarToggle"
+          class="top-bar-mobile-toggle"
+          aria-label="바 최소화"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+      </div>
+      <div id="topBarMini" class="top-bar-mobile-mini" aria-label="바 펼치기">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="18 15 12 9 6 15"></polyline>
+        </svg>
+        <span>TOP</span>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const topButton = document.getElementById("topButton");
+        const topBarMobile = document.getElementById("topBarMobile");
+        const topBarAction = document.getElementById("topBarAction");
+        const topBarToggle = document.getElementById("topBarToggle");
+        const topBarMini = document.getElementById("topBarMini");
+
+        if (!topButton || !topBarMobile) return;
+
+        let isMinimized = sessionStorage.getItem("topBarMinimized") === "true";
+        let ticking = false;
+        let scrollTimeout = null;
+
+        function updateTopButton() {
+          const scrollY = window.scrollY;
+          const shouldShow = scrollY > 400;
+
+          // 데스크톱: 원형 버튼
+          if (shouldShow) {
+            topButton.classList.add("visible");
+          } else {
+            topButton.classList.remove("visible");
+          }
+
+          // 모바일: 하단 바
+          if (window.innerWidth <= 768) {
+            if (shouldShow) {
+              topBarMobile.classList.add("visible");
+            } else {
+              topBarMobile.classList.remove("visible");
+            }
+          }
+
+          ticking = false;
+        }
+
+        // 스크롤 중 반투명 효과
+        function handleScroll() {
+          if (!ticking) {
+            window.requestAnimationFrame(updateTopButton);
+            ticking = true;
+          }
+
+          // 스크롤 중 반투명
+          topBarMobile.classList.add("scrolling");
+          clearTimeout(scrollTimeout);
+          scrollTimeout = setTimeout(function () {
+            topBarMobile.classList.remove("scrolling");
+          }, 150);
+        }
+
+        window.addEventListener("scroll", handleScroll);
+
+        // 데스크톱 버튼 클릭
+        topButton.addEventListener("click", function () {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+
+        // 모바일 바 클릭 (맨 위로)
+        if (topBarAction) {
+          topBarAction.addEventListener("click", function () {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          });
+        }
+
+        // 바 최소화/확장 토글
+        if (topBarToggle) {
+          topBarToggle.addEventListener("click", function () {
+            isMinimized = true;
+            topBarMobile.classList.add("minimized");
+            sessionStorage.setItem("topBarMinimized", "true");
+          });
+        }
+
+        // 최소화 상태에서 클릭하면 확장 + 맨 위로
+        if (topBarMini) {
+          topBarMini.addEventListener("click", function () {
+            isMinimized = false;
+            topBarMobile.classList.remove("minimized");
+            sessionStorage.setItem("topBarMinimized", "false");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          });
+        }
+
+        // 초기 상태 적용
+        if (isMinimized) {
+          topBarMobile.classList.add("minimized");
+        }
+
+        // 리사이즈 시 업데이트
+        window.addEventListener("resize", function () {
+          if (!ticking) {
+            window.requestAnimationFrame(updateTopButton);
+            ticking = true;
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
