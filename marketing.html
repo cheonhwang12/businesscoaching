@@ -251,8 +251,8 @@
 
       .mkt-hero-section .section-badge {
         color: #ffffff !important;
-        background: rgba(255,255,255,0.15) !important;
-        border: 1px solid rgba(255,255,255,0.3) !important;
+        background: rgba(255, 255, 255, 0.15) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
         display: inline-block !important;
         background: linear-gradient(
           135deg,
@@ -277,12 +277,11 @@
       }
 
       .mkt-hero-section .section-title span {
-        
         -webkit-text-fill-color: #ffffff !important;
       }
 
       .mkt-hero-section .section-subtitle {
-        color: rgba(255,255,255,0.85) !important;
+        color: rgba(255, 255, 255, 0.85) !important;
         font-size: 20px !important;
         color: #1e4a8d !important;
         line-height: 1.6 !important;
@@ -298,16 +297,16 @@
         }
 
         .mkt-hero-section .section-badge {
-        color: #ffffff !important;
-        background: rgba(255,255,255,0.15) !important;
-        border: 1px solid rgba(255,255,255,0.3) !important;
+          color: #ffffff !important;
+          background: rgba(255, 255, 255, 0.15) !important;
+          border: 1px solid rgba(255, 255, 255, 0.3) !important;
           font-size: 12px !important;
           padding: 6px 16px !important;
           margin-bottom: 16px !important;
         }
 
         .mkt-hero-section .section-title {
-        color: #ffffff !important;
+          color: #ffffff !important;
           font-size: 32px !important;
           margin-bottom: 16px !important;
           line-height: 1.3 !important;
@@ -319,7 +318,7 @@
         }
 
         .mkt-hero-section .section-subtitle {
-        color: rgba(255,255,255,0.85) !important;
+          color: rgba(255, 255, 255, 0.85) !important;
           font-size: 16px !important;
           line-height: 1.5 !important;
           padding: 0 10px !important;
@@ -339,13 +338,13 @@
         }
 
         .mkt-hero-section .section-title {
-        color: #ffffff !important;
+          color: #ffffff !important;
           font-size: 28px !important;
           color: #1e4a8d !important;
         }
 
         .mkt-hero-section .section-subtitle {
-        color: rgba(255,255,255,0.85) !important;
+          color: rgba(255, 255, 255, 0.85) !important;
           font-size: 15px !important;
           color: #1e4a8d !important;
         }
@@ -367,7 +366,11 @@
 
     <section class="mkt-hero-section">
       <div class="video-bg">
-        <iframe src="https://www.youtube.com/embed/2vpiuiedbXk?autoplay=1&mute=1&loop=1&playlist=2vpiuiedbXk&start=29&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+        <iframe
+          src="https://www.youtube.com/embed/2vpiuiedbXk?autoplay=1&mute=1&loop=1&playlist=2vpiuiedbXk&start=29&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1"
+          allow="autoplay; encrypted-media"
+          allowfullscreen
+        ></iframe>
       </div>
       <div class="video-overlay"></div>
       <div class="section-container">
@@ -1425,41 +1428,7 @@
     <script>
       // 부드러운 스크롤
       document.addEventListener("DOMContentLoaded", function () {
-        // 모든 무료상담 링크에 부드러운 스크롤 적용 (헤더 + 페이지 내 버튼)
-        const consultButtons = document.querySelectorAll(
-          'a[href="fund.html#contact-form"]',
-        );
-
-        consultButtons.forEach(function (consultButton) {
-          consultButton.addEventListener("click", function (e) {
-            e.preventDefault();
-            const target = document.querySelector("#mkt-contact-form");
-            if (target) {
-              target.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-              });
-
-              setTimeout(() => {
-                const companyInput =
-                  target.querySelector('input[name="company"]') ||
-                  target.querySelector('input[type="text"]:first-of-type');
-
-                if (companyInput) {
-                  companyInput.focus();
-                  companyInput.click();
-
-                  setTimeout(() => {
-                    companyInput.scrollIntoView({
-                      behavior: "smooth",
-                      block: "center",
-                    });
-                  }, 300);
-                }
-              }, 800);
-            }
-          });
-        });
+        // 무료상담 링크 → fund.html#contact-form으로 이동 (기본 동작 사용)
 
         // 서비스 카드 호버 효과
         const serviceCards = document.querySelectorAll(
