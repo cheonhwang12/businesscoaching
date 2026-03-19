@@ -2699,7 +2699,6 @@
         grid-template-columns: 1.2fr 1fr;
         gap: 48px;
         padding: 16px 0 0;
-        
       }
 
       .bizcoach-footer .footer-title {
@@ -2812,7 +2811,8 @@
         padding: 8px 0 12px;
         display: flex;
         justify-content: flex-start;
-        align-items: flex-start; flex-direction: column;
+        align-items: flex-start;
+        flex-direction: column;
         gap: 8px;
       }
 
@@ -3250,12 +3250,12 @@
       .mobile-nav-bar a {
         color: rgba(255, 255, 255, 0.8);
         text-decoration: none;
-        font-size: 13px;
+        font-size: 11px;
         font-weight: 500;
-        padding: 8px 6px;
+        padding: 8px 2px;
         transition: all 0.2s ease;
         white-space: nowrap;
-        letter-spacing: -0.3px;
+        letter-spacing: -0.5px;
       }
       .mobile-nav-bar a:hover,
       .mobile-nav-bar a:active {
@@ -3316,7 +3316,13 @@
       }
 
       /* 모바일: 하단 바 (Top 버튼) - 네비게이션 바 위에 위치 */
-      .top-bar-mobile, .top-bar-mobile.visible, .top-bar-mobile.minimized { display: none !important; visibility: hidden !important; } .top-bar-mobile-ORIGINAL {
+      .top-bar-mobile,
+      .top-bar-mobile.visible,
+      .top-bar-mobile.minimized {
+        display: none !important;
+        visibility: hidden !important;
+      }
+      .top-bar-mobile-ORIGINAL {
         display: none;
         position: fixed;
         bottom: 56px; /* 네비게이션 바 높이만큼 위로 */
@@ -3332,7 +3338,10 @@
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         box-shadow: 0 -4px 20px rgba(30, 74, 141, 0.08);
       }
-      .top-bar-mobile.visible { display: none !important; } .DISABLED-visible {
+      .top-bar-mobile.visible {
+        display: none !important;
+      }
+      .DISABLED-visible {
         opacity: 1;
         visibility: visible;
         transform: translateY(0);
@@ -3447,6 +3456,7 @@
         <a href="process.html">진행절차</a>
         <a href="fund.html">정책자금</a>
         <a href="service.html">서비스</a>
+        <a href="marketing.html">마케팅</a>
       </div>
     </nav>
 
