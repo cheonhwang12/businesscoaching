@@ -33,3 +33,5 @@ wireframe-color.html
 glow-test.html
 *.psd
 *.ai
+
+.vercel

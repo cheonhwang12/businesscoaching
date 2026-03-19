@@ -77,63 +77,63 @@ const config = {
         // 1. www -> apex domain redirect
         {
             src: "/(.*)",
-            has: [{ type: "host", value: "www.bizcoaching.co.kr.co.kr" }],
-            headers: { Location: "https://bizcoaching.co.kr.co.kr/$1" },
+            has: [{ type: "host", value: "www.bizcoaching.co.kr" }],
+            headers: { Location: "https://bizcoaching.co.kr/$1" },
             status: 301
         },
-        // 2. Admin subdomain: /admin -> / redirect
+        // 2. Admin subdomain: /admin -> / redirect (admin.bizcoaching.co.kr/admin → admin.bizcoaching.co.kr/)
         {
             src: "^/admin$",
-            has: [{ type: "host", value: "admin.bizcoaching.co.kr.co.kr" }],
+            has: [{ type: "host", value: "admin.bizcoaching.co.kr" }],
             headers: { Location: "/" },
             status: 301
         },
         // 3. Admin subdomain: /admin/* -> /* redirect
         {
             src: "^/admin/(.*)",
-            has: [{ type: "host", value: "admin.bizcoaching.co.kr.co.kr" }],
+            has: [{ type: "host", value: "admin.bizcoaching.co.kr" }],
             headers: { Location: "/$1" },
             status: 301
         },
-        // 4. Remove trailing slash (except root)
+        // 4. Admin subdomain: root -> /admin/index.html
+        {
+            src: "^/$",
+            has: [{ type: "host", value: "admin.bizcoaching.co.kr" }],
+            dest: "/admin/index.html"
+        },
+        // 5. Admin subdomain: sub-pages -> /admin/*.html
+        {
+            src: "/([^.]+)",
+            has: [{ type: "host", value: "admin.bizcoaching.co.kr" }],
+            dest: "/admin/$1.html"
+        },
+        // 6. Remove trailing slash (except root)
         {
             src: "(.+)/",
             headers: { Location: "$1" },
             status: 308
         },
-        // 5. Redirect .html URLs to clean URLs
+        // 7. Redirect .html URLs to clean URLs
         {
             src: "/(.*)\\.html",
             headers: { Location: "/$1" },
             status: 301
         },
-        // 6. Admin subdomain: root -> /admin/index.html
-        {
-            src: "^/$",
-            has: [{ type: "host", value: "admin.bizcoaching.co.kr.co.kr" }],
-            dest: "/admin/index.html"
-        },
-        // 7. Admin subdomain: sub-pages -> /admin/*.html
-        {
-            src: "/([^.]+)",
-            has: [{ type: "host", value: "admin.bizcoaching.co.kr.co.kr" }],
-            dest: "/admin/$1.html"
-        },
-        // 7. Filesystem check
+        // 8. Filesystem check
         { handle: "filesystem" },
-        // 6. Clean URLs: serve .html files without extension
+        // 9. Clean URLs: serve .html files without extension
         {
             src: "/(.*)",
             dest: "/$1.html",
             check: true
         },
-        // 7. posts -> marketing-news redirect
+        // 10. posts -> marketing-news redirect
         {
             src: "/posts/(.*)",
             headers: { Location: "/marketing-news/$1" },
             status: 301
         },
-        // 8. marketing-news -> posts rewrite
+        // 11. marketing-news -> posts rewrite
         {
             src: "/marketing-news/(.*)",
             dest: "/posts/$1",
