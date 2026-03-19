@@ -1,0 +1,17 @@
+name = "business-coaching"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+AIRTABLE_BASE_ID = "appAZ9azWpz2kOIdq"
+AIRTABLE_TABLE_ID = "tblmgWictjfTvZCou"
+TELEGRAM_ADMIN_CHAT_ID = "-1003708520358"
+ALLOWED_ORIGINS = "https://businesscoaching.vercel.app,https://bizcoaching.co.kr,https://www.bizcoaching.co.kr,https://admin.bizcoaching.co.kr"
+AIRTABLE_BOARD_TABLE_ID = ""
+AIRTABLE_EMPLOYEES_TABLE_ID = ""
+AIRTABLE_POPUPS_TABLE_ID = ""
+R2_PUBLIC_URL = "https://pub-bc9039719ad646bc8c6ab4169bb938b9.r2.dev"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "business-coaching-r2"

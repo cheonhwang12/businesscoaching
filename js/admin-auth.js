@@ -25,7 +25,7 @@ function checkAuth() {
 
 // OTP 요청
 async function requestOTP() {
-  const response = await fetch(`${WORKER_URL}/auth/otp`, {
+  const response = await fetch(`${WORKER_URL}/admin-auth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -34,7 +34,7 @@ async function requestOTP() {
 
 // OTP 검증 → 로그인
 async function verifyOTP(code) {
-  const response = await fetch(`${WORKER_URL}/auth`, {
+  const response = await fetch(`${WORKER_URL}/admin-verify`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
