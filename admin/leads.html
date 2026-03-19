@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>접수내역 - 비지니스코칭</title>
+    <link rel="stylesheet" href="/css/dashboard.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css"
+    />
+    <script src="/js/admin-auth.js"></script>
+  </head>
+  <body>
+    <div class="dashboard-container">
+      <!-- 사이드바 오버레이 (모바일) -->
+      <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+      <!-- 사이드바 -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h1 class="logo">비지니스코칭</h1>
+          <span class="logo-sub">관리자</span>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a href="/" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>
+            </span>
+            <span class="nav-text">대시보드</span>
+          </a>
+          <a href="/leads" class="nav-item active">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                <path
+                  d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
+                />
+              </svg>
+            </span>
+            <span class="nav-text">접수내역</span>
+          </a>
+          <a href="/email" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
+                />
+                <polyline points="22,6 12,13 2,6" />
+              </svg>
+            </span>
+            <span class="nav-text">이메일 발송</span>
+          </a>
+          <a href="/board" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                />
+                <path
+                  d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                />
+              </svg>
+            </span>
+            <span class="nav-text">게시판 관리</span>
+          </a>
+          <a href="/employees" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            <span class="nav-text">임직원 관리</span>
+          </a>
+          <a href="/popups" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            </span>
+            <span class="nav-text">팝업 관리</span>
+          </a>
+          <a href="/analytics" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+            </span>
+            <span class="nav-text">방문통계</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <a href="https://bizcoaching.co.kr" class="nav-item" target="_blank">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+            </span>
+            <span class="nav-text">사이트 보기</span>
+          </a>
+        </div>
+      </aside>
+
+      <!-- 메인 콘텐츠 -->
+      <main class="main-content">
+        <!-- 헤더 -->
+        <header class="dashboard-header">
+          <div class="header-left">
+            <button class="mobile-menu-btn" onclick="toggleSidebar()">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+            <div>
+              <h1 class="page-title">접수내역</h1>
+              <p class="page-subtitle">고객 상담 요청을 관리하세요</p>
+            </div>
+          </div>
+          <div class="header-right">
+            <span class="user-name">관리자</span>
+            <button class="btn-logout" onclick="logout()">로그아웃</button>
+          </div>
+        </header>
+
+        <!-- 필터 & 검색 -->
+        <section class="filter-section">
+          <div class="filter-row">
+            <div class="filter-group">
+              <select
+                class="filter-select"
+                id="statusFilter"
+                onchange="filterLeads()"
+              >
+                <option value="">전체 상태</option>
+                <option value="pending">대기중</option>
+                <option value="progress">상담중</option>
+                <option value="complete">완료</option>
+                <option value="cancel">취소</option>
+              </select>
+              <select
+                class="filter-select"
+                id="dateFilter"
+                onchange="filterLeads()"
+              >
+                <option value="7">최근 7일</option>
+                <option value="30">최근 30일</option>
+                <option value="90">최근 90일</option>
+                <option value="all" selected>전체</option>
+              </select>
+            </div>
+            <div class="search-group">
+              <input
+                type="text"
+                class="search-input"
+                id="searchInput"
+                placeholder="이름, 연락처, 회사명 검색..."
+                onkeypress="if (event.key === 'Enter') searchLeads();"
+              />
+              <button class="btn-search" onclick="searchLeads()">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="filter-summary">
+            <span>총 <strong id="totalCount">0</strong>건</span>
+            <button class="btn-export" onclick="exportToExcel()">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              엑셀 다운로드
+            </button>
+          </div>
+        </section>
+
+        <!-- 접수 목록 테이블 -->
+        <section class="leads-section">
+          <div class="table-container">
+            <table class="data-table leads-table">
+              <thead>
+                <tr>
+                  <th>
+                    <input
+                      type="checkbox"
+                      id="selectAll"
+                      onchange="toggleSelectAll()"
+                    />
+                  </th>
+                  <th>접수일</th>
+                  <th>기업명</th>
+                  <th>대표자</th>
+                  <th>연락처</th>
+                  <th>업종</th>
+                  <th>지역</th>
+                  <th>희망금액</th>
+                  <th>상태</th>
+                  <th>메모</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody id="leadsTableBody">
+                <tr>
+                  <td
+                    colspan="11"
+                    style="
+                      text-align: center;
+                      padding: 40px;
+                      color: var(--neutral-400);
+                    "
+                  >
+                    데이터를 불러오는 중...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 페이지네이션 -->
+          <div class="pagination" id="pagination">
+            <button
+              class="pagination-btn"
+              id="prevBtn"
+              onclick="prevPage()"
+              disabled
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+            <span class="pagination-info" id="paginationInfo"
+              >1 / 1 페이지</span
+            >
+            <button class="pagination-btn" id="nextBtn" onclick="nextPage()">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- 상세보기 모달 -->
+    <div class="modal-overlay" id="detailModal">
+      <div class="modal modal-lg">
+        <div class="modal-header">
+          <h3 class="modal-title">접수 상세 정보</h3>
+          <button class="modal-close" onclick="closeDetailModal()">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>접수일시</label>
+              <span id="detailDate">-</span>
+            </div>
+            <div class="detail-item">
+              <label>기업명</label>
+              <span id="detailCompany">-</span>
+            </div>
+            <div class="detail-item">
+              <label>대표자명</label>
+              <span id="detailName">-</span>
+            </div>
+            <div class="detail-item">
+              <label>연락처</label>
+              <span id="detailPhone">-</span>
+            </div>
+            <div class="detail-item">
+              <label>이메일</label>
+              <span id="detailEmail">-</span>
+            </div>
+            <div class="detail-item">
+              <label>업종</label>
+              <span id="detailBusiness">-</span>
+            </div>
+            <div class="detail-item">
+              <label>지역</label>
+              <span id="detailRegion">-</span>
+            </div>
+            <div class="detail-item">
+              <label>희망금액</label>
+              <span id="detailAmount">-</span>
+            </div>
+            <div class="detail-item">
+              <label>통화가능시간</label>
+              <span id="detailCallTime">-</span>
+            </div>
+            <div class="detail-item">
+              <label>직전년도매출</label>
+              <span id="detailRevenue">-</span>
+            </div>
+            <div class="detail-item full-width">
+              <label>상담내용</label>
+              <p id="detailContent">-</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="closeDetailModal()">
+            닫기
+          </button>
+          <button class="btn-primary" onclick="callCustomer()">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
+              />
+            </svg>
+            전화걸기
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 하단 메뉴바 (모바일) -->
+    <nav class="bottom-nav">
+      <ul class="bottom-nav-list">
+        <li class="bottom-nav-item">
+          <a href="/" class="bottom-nav-link">
+            <span class="bottom-nav-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>
+            </span>
+            <span class="bottom-nav-text">대시보드</span>
+          </a>
+        </li>
+        <li class="bottom-nav-item">
+          <a href="/leads" class="bottom-nav-link active">
+            <span class="bottom-nav-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                <path
+                  d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
+                />
+              </svg>
+            </span>
+            <span class="bottom-nav-text">접수</span>
+          </a>
+        </li>
+        <li class="bottom-nav-item">
+          <a href="/board" class="bottom-nav-link">
+            <span class="bottom-nav-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                />
+                <path
+                  d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                />
+              </svg>
+            </span>
+            <span class="bottom-nav-text">게시판</span>
+          </a>
+        </li>
+        <li class="bottom-nav-item">
+          <a href="/analytics" class="bottom-nav-link">
+            <span class="bottom-nav-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+            </span>
+            <span class="bottom-nav-text">통계</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <script src="/js/components.js"></script>
+    <script>
+      // 상태 관리
+      let allLeads = [];
+      let filteredLeads = [];
+      let currentPage = 1;
+      let pageSize = 10;
+      let currentDetailLead = null;
+
+      // 사이드바 토글
+      function toggleSidebar() {
+        document.querySelector(".sidebar").classList.toggle("open");
+        document.querySelector(".sidebar-overlay").classList.toggle("open");
+      }
+
+      // 로그아웃
+      function logout() {
+        if (confirm("로그아웃 하시겠습니까?")) {
+          window.location.href = "/";
+        }
+      }
+
+      // 페이지 로드 시 초기화
+      document.addEventListener("DOMContentLoaded", function () {
+        loadLeads();
+      });
+
+      // API URL
+      const API_URL = WORKER_URL; // admin-auth.js에서 정의
+
+      // 접수 목록 로드 (API 호출)
+      async function loadLeads() {
+        try {
+          const response = await fetch(`${API_URL}/leads`);
+          const data = await response.json();
+
+          if (data.success && data.leads) {
+            // API 데이터를 테이블 형식으로 변환 (영문 필드명 사용)
+            allLeads = data.leads.map((lead) => ({
+              id: lead.id,
+              date:
+                lead.Date ||
+                (lead.createdTime ? lead.createdTime.split("T")[0] : "-"),
+              company: lead.Company || "-",
+              name: lead.Name || "-",
+              phone: lead.Phone || "-",
+              email: lead.Email || "",
+              business: lead.Industry || "-",
+              region: lead.Region || "-",
+              amount: lead.Amount || "-",
+              callTime: lead.CallTime || "-",
+              revenue: lead.Revenue || "-",
+              status: mapStatus(lead.Status),
+              memo: lead.Memo || "",
+              content: lead.Message || "-",
+            }));
+          } else {
+            allLeads = [];
+          }
+        } catch (error) {
+          console.error("API 호출 실패:", error);
+          allLeads = [];
+        }
+
+        filteredLeads = [...allLeads];
+        renderLeads();
+      }
+
+      // 상태값 매핑
+      function mapStatus(status) {
+        const statusMap = {
+          신규: "pending",
+          상담중: "progress",
+          완료: "complete",
+          취소: "cancel",
+        };
+        return statusMap[status] || "pending";
+      }
+
+      // 접수 목록 렌더링
+      function renderLeads() {
+        const tbody = document.getElementById("leadsTableBody");
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        const pageLeads = filteredLeads.slice(startIndex, endIndex);
+
+        document.getElementById("totalCount").textContent =
+          filteredLeads.length;
+
+        if (pageLeads.length === 0) {
+          tbody.innerHTML = `
+          <tr>
+            <td colspan="11" style="text-align: center; padding: 40px; color: var(--neutral-400);">
+              검색 결과가 없습니다.
+            </td>
+          </tr>
+        `;
+          return;
+        }
+
+        tbody.innerHTML = pageLeads
+          .map(
+            (lead) => `
+        <tr>
+          <td><input type="checkbox" class="lead-checkbox" data-id="${lead.id}"></td>
+          <td data-label="접수일">${lead.date}</td>
+          <td data-label="기업명">${lead.company}</td>
+          <td data-label="대표자">${lead.name}</td>
+          <td data-label="연락처"><a href="tel:${lead.phone}">${lead.phone}</a></td>
+          <td data-label="업종">${lead.business}</td>
+          <td data-label="지역">${lead.region}</td>
+          <td data-label="희망금액">${lead.amount}</td>
+          <td data-label="상태">
+            <select class="status-select ${lead.status}" onchange="updateStatus(${lead.id}, this.value)">
+              <option value="pending" ${lead.status === "pending" ? "selected" : ""}>대기중</option>
+              <option value="progress" ${lead.status === "progress" ? "selected" : ""}>상담중</option>
+              <option value="complete" ${lead.status === "complete" ? "selected" : ""}>완료</option>
+              <option value="cancel" ${lead.status === "cancel" ? "selected" : ""}>취소</option>
+            </select>
+          </td>
+          <td data-label="메모"><input type="text" class="memo-input" value="${lead.memo}" placeholder="메모 입력..." onchange="updateMemo('${lead.id}', this.value)"></td>
+          <td>
+            <button class="btn-icon" onclick="showDetail('${lead.id}')" title="상세보기">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+            <button class="btn-icon btn-icon-danger" onclick="deleteLead('${lead.id}')" title="삭제">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </button>
+          </td>
+        </tr>
+      `,
+          )
+          .join("");
+
+        updatePagination();
+      }
+
+      // 페이지네이션 업데이트
+      function updatePagination() {
+        const totalPages = Math.ceil(filteredLeads.length / pageSize);
+        document.getElementById("paginationInfo").textContent =
+          `${currentPage} / ${totalPages || 1} 페이지`;
+        document.getElementById("prevBtn").disabled = currentPage <= 1;
+        document.getElementById("nextBtn").disabled = currentPage >= totalPages;
+      }
+
+      // 페이지 이동
+      function prevPage() {
+        if (currentPage > 1) {
+          currentPage--;
+          renderLeads();
+        }
+      }
+
+      function nextPage() {
+        const totalPages = Math.ceil(filteredLeads.length / pageSize);
+        if (currentPage < totalPages) {
+          currentPage++;
+          renderLeads();
+        }
+      }
+
+      // 필터링
+      function filterLeads() {
+        const status = document.getElementById("statusFilter").value;
+        const days = document.getElementById("dateFilter").value;
+
+        filteredLeads = allLeads.filter((lead) => {
+          // 상태 필터
+          if (status && lead.status !== status) return false;
+
+          // 날짜 필터
+          if (days !== "all") {
+            const leadDate = new Date(lead.date);
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - parseInt(days));
+            if (leadDate < cutoff) return false;
+          }
+
+          return true;
+        });
+
+        currentPage = 1;
+        renderLeads();
+      }
+
+      // 검색
+      function searchLeads() {
+        const keyword = document
+          .getElementById("searchInput")
+          .value.toLowerCase();
+
+        if (!keyword) {
+          filterLeads();
+          return;
+        }
+
+        filteredLeads = allLeads.filter((lead) => {
+          return (
+            lead.name.toLowerCase().includes(keyword) ||
+            lead.phone.includes(keyword) ||
+            lead.company.toLowerCase().includes(keyword) ||
+            lead.email.toLowerCase().includes(keyword)
+          );
+        });
+
+        currentPage = 1;
+        renderLeads();
+      }
+
+      // 상태 업데이트 (API 호출)
+      async function updateStatus(id, status) {
+        const lead = allLeads.find((l) => l.id === id);
+        if (lead) {
+          // 상태값 매핑 (영문 → 한글)
+          const statusMap = {
+            pending: "신규",
+            progress: "상담중",
+            complete: "완료",
+            cancel: "취소",
+          };
+
+          try {
+            const response = await fetch(`${API_URL}/leads/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ Status: statusMap[status] || "신규" }),
+            });
+
+            const result = await response.json();
+            if (result.success) {
+              lead.status = status;
+              console.log(`✅ 상태 업데이트 완료: ${id} → ${status}`);
+            } else {
+              throw new Error(result.error);
+            }
+          } catch (error) {
+            console.error("상태 업데이트 실패:", error);
+            alert("상태 업데이트에 실패했습니다.");
+          }
+        }
+      }
+
+      // 메모 업데이트 (API 호출)
+      async function updateMemo(id, memo) {
+        const lead = allLeads.find((l) => l.id === id);
+        if (lead) {
+          try {
+            const response = await fetch(`${API_URL}/leads/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ Memo: memo }),
+            });
+
+            const result = await response.json();
+            if (result.success) {
+              lead.memo = memo;
+              console.log(`✅ 메모 업데이트 완료: ${id}`);
+            } else {
+              throw new Error(result.error);
+            }
+          } catch (error) {
+            console.error("메모 업데이트 실패:", error);
+            alert("메모 업데이트에 실패했습니다.");
+          }
+        }
+      }
+
+      // 상세보기
+      function showDetail(id) {
+        const lead = allLeads.find((l) => l.id === id);
+        if (!lead) return;
+
+        currentDetailLead = lead;
+
+        document.getElementById("detailDate").textContent = lead.date;
+        document.getElementById("detailCompany").textContent = lead.company;
+        document.getElementById("detailName").textContent = lead.name;
+        document.getElementById("detailPhone").textContent = lead.phone;
+        document.getElementById("detailEmail").textContent = lead.email || "-";
+        document.getElementById("detailBusiness").textContent = lead.business;
+        document.getElementById("detailRegion").textContent = lead.region;
+        document.getElementById("detailAmount").textContent = lead.amount;
+        document.getElementById("detailCallTime").textContent =
+          lead.callTime || "-";
+        document.getElementById("detailRevenue").textContent =
+          lead.revenue || "-";
+        document.getElementById("detailContent").textContent =
+          lead.content || "-";
+
+        document.getElementById("detailModal").classList.add("open");
+      }
+
+      function closeDetailModal() {
+        document.getElementById("detailModal").classList.remove("open");
+        currentDetailLead = null;
+      }
+
+      // 전화 걸기
+      function callCustomer() {
+        if (currentDetailLead && currentDetailLead.phone) {
+          window.location.href = `tel:${currentDetailLead.phone}`;
+        }
+      }
+
+      // 삭제
+      async function deleteLead(id) {
+        if (
+          !confirm(
+            "정말 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.",
+          )
+        )
+          return;
+
+        try {
+          const response = await fetch(`${API_URL}/leads/${id}`, {
+            method: "DELETE",
+          });
+
+          const result = await response.json();
+
+          if (!result.success) {
+            throw new Error(result.error || "삭제에 실패했습니다.");
+          }
+
+          // UI에서 제거
+          allLeads = allLeads.filter((l) => l.id !== id);
+          filteredLeads = filteredLeads.filter((l) => l.id !== id);
+          renderLeads();
+        } catch (error) {
+          console.error("삭제 오류:", error);
+          alert("삭제 중 오류가 발생했습니다: " + error.message);
+        }
+      }
+
+      // 전체 선택
+      function toggleSelectAll() {
+        const isChecked = document.getElementById("selectAll").checked;
+        document.querySelectorAll(".lead-checkbox").forEach((cb) => {
+          cb.checked = isChecked;
+        });
+      }
+
+      // 엑셀 다운로드
+      function exportToExcel() {
+        // TODO: 엑셀 다운로드 구현
+        alert("엑셀 다운로드 기능은 준비 중입니다.");
+      }
+    </script>
+  </body>
+</html>

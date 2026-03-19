@@ -1,0 +1,29 @@
+{
+  "name": "businesscoaching-homepage",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "비지니스코칭 홈페이지",
+  "scripts": {
+    "build": "node build.cjs",
+    "deploy": "node build.cjs && npx vercel deploy --prod --force --yes",
+    "dev": "npx kill-port 5000 2>/dev/null; npx live-server . --port=5000 --no-browser",
+    "watch": "nodemon --watch src --watch css --exec \"node build.cjs\" -e html,css,js",
+    "generate-images": "node scripts/generate-images.mjs"
+  },
+  "keywords": [
+    "businesscoaching",
+    "경영컨설팅",
+    "비지니스코칭"
+  ],
+  "author": "비지니스코칭",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "dotenv": "^16.4.7",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1002.0",
+    "puppeteer": "^24.38.0"
+  }
+}

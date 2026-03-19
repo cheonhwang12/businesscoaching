@@ -1,0 +1,2760 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>방문통계 - 비지니스코칭</title>
+    <link rel="stylesheet" href="/css/dashboard.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/js/admin-auth.js"></script>
+    <style>
+      .loading-skeleton {
+        background: linear-gradient(
+          90deg,
+          #f1f5f9 25%,
+          #e2e8f0 50%,
+          #f1f5f9 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s bizcoach;
+        border-radius: 4px;
+      }
+      @keyframes shimmer {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
+      .error-message {
+        text-align: center;
+        padding: 40px;
+        color: var(--error);
+      }
+      .refresh-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        background: var(--neutral-100);
+        border: none;
+        border-radius: var(--radius-md);
+        font-size: 13px;
+        color: var(--neutral-700);
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .refresh-btn:hover {
+        background: var(--neutral-200);
+      }
+      .refresh-btn.loading svg {
+        animation: spin 1s linear bizcoach;
+      }
+      @keyframes spin {
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+      .data-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .data-list-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--neutral-100);
+      }
+      .data-list-item:last-child {
+        border-bottom: none;
+      }
+      .data-list-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: var(--neutral-700);
+      }
+      .data-list-value {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--neutral-800);
+      }
+      .data-list-badge {
+        font-size: 12px;
+        padding: 2px 8px;
+        background: rgba(30, 74, 141, 0.06);
+        color: var(--primary);
+        border-radius: 10px;
+        margin-left: 8px;
+      }
+      .progress-bar {
+        height: 6px;
+        background: var(--neutral-200);
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 6px;
+      }
+      .progress-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.5s ease;
+      }
+      .last-updated {
+        font-size: 12px;
+        color: var(--neutral-500);
+      }
+      .section-divider {
+        margin: 40px 0 24px;
+        padding-top: 24px;
+        border-top: 2px solid var(--neutral-200);
+      }
+      .table-empty {
+        text-align: center;
+        padding: 40px;
+        color: var(--neutral-400);
+      }
+      .compare-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      @media (max-width: 768px) {
+        .compare-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .compare-card {
+        background: white;
+        border-radius: var(--radius-lg);
+        padding: 20px;
+        border: 1px solid var(--neutral-200);
+      }
+      .compare-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--neutral-700);
+        margin-bottom: 16px;
+      }
+      .compare-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--neutral-100);
+      }
+      .compare-row:last-child {
+        border-bottom: none;
+      }
+      .compare-label {
+        font-size: 13px;
+        color: var(--neutral-600);
+      }
+      .compare-values {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .compare-current {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--neutral-800);
+      }
+      .compare-change {
+        font-size: 12px;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .compare-change.positive {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+      }
+      .compare-change.negative {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+      }
+      .cumulative-chart-card {
+        background: white;
+        border-radius: var(--radius-lg);
+        padding: 20px;
+        border: 1px solid var(--neutral-200);
+      }
+      .cumulative-chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .cumulative-chart-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--neutral-800);
+      }
+      .days-selector {
+        display: flex;
+        gap: 8px;
+      }
+      .days-btn {
+        padding: 6px 12px;
+        border: 1px solid var(--neutral-200);
+        background: white;
+        border-radius: var(--radius-md);
+        font-size: 12px;
+        color: var(--neutral-600);
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .days-btn:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+      .days-btn.active {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: white;
+      }
+      .history-table-wrapper {
+        overflow-x: auto;
+      }
+      .history-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .history-table th,
+      .history-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--neutral-100);
+      }
+      .history-table th {
+        background: var(--neutral-50);
+        font-weight: 600;
+        color: var(--neutral-700);
+      }
+      .history-table .table-value {
+        font-weight: 600;
+        color: var(--neutral-800);
+      }
+      .month-group-header {
+        background: var(--neutral-50);
+        cursor: pointer;
+      }
+      .month-group-header:hover {
+        background: var(--neutral-100);
+      }
+      .month-group-header.current {
+        background: rgba(30, 74, 141, 0.06);
+      }
+      .month-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .toggle-icon {
+        font-size: 10px;
+        color: var(--neutral-500);
+      }
+      .month-count {
+        font-size: 11px;
+        color: var(--neutral-500);
+        font-weight: normal;
+      }
+      .month-detail-row {
+        background: white;
+      }
+      .month-detail-row:hover {
+        background: var(--neutral-50);
+      }
+      /* 페이지네이션 스타일 */
+      .pagination-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 0;
+        border-top: 1px solid var(--neutral-100);
+        margin-top: 8px;
+      }
+      .pagination-info {
+        font-size: 13px;
+        color: var(--neutral-500);
+      }
+      .pagination-controls {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .pagination-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        height: 32px;
+        padding: 0 8px;
+        border: 1px solid var(--neutral-200);
+        background: white;
+        border-radius: var(--radius-md);
+        font-size: 13px;
+        color: var(--neutral-600);
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .pagination-btn:hover:not(:disabled) {
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+      .pagination-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .pagination-btn.active {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: white;
+      }
+      .pagination-btn.nav-btn {
+        padding: 0 14px;
+        min-width: auto;
+        white-space: nowrap;
+        gap: 4px;
+      }
+      .page-size-selector {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--neutral-600);
+      }
+      .page-size-selector select {
+        padding: 6px 8px;
+        border: 1px solid var(--neutral-200);
+        border-radius: var(--radius-md);
+        font-size: 13px;
+        cursor: pointer;
+      }
+      @media (max-width: 768px) {
+        .pagination-container {
+          flex-direction: column;
+          gap: 12px;
+        }
+        .pagination-info {
+          order: 2;
+        }
+        .page-size-selector {
+          order: 3;
+        }
+        /* 모바일 테이블 카드 스타일 */
+        .history-table-wrapper {
+          overflow-x: visible;
+        }
+        .history-table {
+          display: block;
+        }
+        .history-table thead {
+          display: none;
+        }
+        .history-table tbody {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .history-table tr {
+          display: block;
+          background: white;
+          border-radius: var(--radius-md);
+          padding: 12px;
+          border: 1px solid var(--neutral-200);
+        }
+        .history-table tr.month-group-header {
+          background: var(--neutral-50);
+          border-color: var(--neutral-300);
+        }
+        .history-table tr.month-group-header td {
+          display: block;
+          padding: 4px 0;
+          border: none;
+        }
+        .history-table tr.month-group-header td:first-child {
+          font-weight: 600;
+          font-size: 14px;
+          margin-bottom: 8px;
+        }
+        .history-table tr.month-detail-row td {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 6px 0;
+          border-bottom: 1px solid var(--neutral-100);
+        }
+        .history-table tr.month-detail-row td:last-child {
+          border-bottom: none;
+        }
+        .history-table tr.month-detail-row td::before {
+          content: attr(data-label);
+          font-size: 12px;
+          color: var(--neutral-500);
+          font-weight: 500;
+        }
+        .history-table tr.month-detail-row td:first-child {
+          font-weight: 600;
+          color: var(--primary);
+          justify-content: center;
+          background: var(--neutral-50);
+          margin: -12px -12px 8px -12px;
+          padding: 10px 12px;
+          border-radius: var(--radius-md) var(--radius-md) 0 0;
+        }
+        .history-table tr.month-detail-row td:first-child::before {
+          display: none;
+        }
+        /* 월별 그룹 헤더 모바일 */
+        .month-toggle {
+          flex-wrap: wrap;
+        }
+        .month-group-header td:not(:first-child) {
+          font-size: 12px;
+        }
+      }
+      /* 통합 기간 필터 스타일 */
+      .unified-filter-section {
+        background: white;
+        border-radius: var(--radius-lg);
+        padding: 20px;
+        margin-bottom: 20px;
+        border: 1px solid var(--neutral-200);
+      }
+      .filter-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .filter-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--neutral-800);
+      }
+      .filter-desc {
+        font-size: 12px;
+        color: var(--neutral-500);
+      }
+      .filter-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 16px;
+      }
+      .quick-period-btns {
+        display: flex;
+        gap: 6px;
+      }
+      .quick-btn {
+        padding: 8px 14px;
+        border: 1px solid var(--neutral-200);
+        background: white;
+        border-radius: var(--radius-md);
+        font-size: 13px;
+        color: var(--neutral-600);
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .quick-btn:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+      .quick-btn.active {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: white;
+      }
+      .date-range-inputs {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .date-label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 11px;
+        color: var(--neutral-500);
+      }
+      .date-input {
+        padding: 8px 12px;
+        border: 1px solid var(--neutral-200);
+        border-radius: var(--radius-md);
+        font-size: 13px;
+        color: var(--neutral-700);
+      }
+      .date-input:focus {
+        outline: none;
+        border-color: var(--primary);
+      }
+      .date-separator {
+        color: var(--neutral-400);
+        padding-top: 16px;
+      }
+      .apply-btn {
+        padding: 8px 16px;
+        background: var(--primary);
+        border: none;
+        border-radius: var(--radius-md);
+        font-size: 13px;
+        color: white;
+        cursor: pointer;
+        margin-top: 16px;
+        transition: background 0.2s;
+      }
+      .apply-btn:hover {
+        background: var(--primary-hover, #1e4a8d);
+      }
+      .current-period-display {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--neutral-100);
+      }
+      .period-icon {
+        font-size: 16px;
+      }
+      .period-text {
+        font-size: 14px;
+        color: var(--neutral-700);
+        font-weight: 500;
+      }
+      @media (max-width: 768px) {
+        .filter-controls {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .quick-period-btns {
+          flex-wrap: wrap;
+        }
+        .date-range-inputs {
+          flex-wrap: wrap;
+        }
+      }
+      /* 분석 평가 섹션 */
+      .analysis-summary {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border-radius: var(--radius-lg);
+        padding: 24px;
+        margin-top: 24px;
+        border: 1px solid var(--neutral-200);
+      }
+      .analysis-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .analysis-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--neutral-800);
+      }
+      .analysis-content {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .analysis-item {
+        background: white;
+        border-radius: var(--radius-md);
+        padding: 16px;
+        border-left: 4px solid var(--primary);
+      }
+      .analysis-item.positive {
+        border-left-color: #10b981;
+      }
+      .analysis-item.negative {
+        border-left-color: #ef4444;
+      }
+      .analysis-item.neutral {
+        border-left-color: #f59e0b;
+      }
+      .analysis-label {
+        font-size: 12px;
+        color: var(--neutral-500);
+        margin-bottom: 4px;
+      }
+      .analysis-text {
+        font-size: 14px;
+        color: var(--neutral-700);
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="dashboard-container">
+      <!-- 사이드바 오버레이 (모바일) -->
+      <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+      <!-- 사이드바 -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h1 class="logo">비지니스코칭</h1>
+          <span class="logo-sub">관리자</span>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a href="/" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>
+            </span>
+            <span class="nav-text">대시보드</span>
+          </a>
+          <a href="/leads" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                <path
+                  d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
+                />
+              </svg>
+            </span>
+            <span class="nav-text">접수내역</span>
+          </a>
+          <a href="/email" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
+                />
+                <polyline points="22,6 12,13 2,6" />
+              </svg>
+            </span>
+            <span class="nav-text">이메일 발송</span>
+          </a>
+          <a href="/board" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                />
+                <path
+                  d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                />
+              </svg>
+            </span>
+            <span class="nav-text">게시판 관리</span>
+          </a>
+          <a href="/employees" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            <span class="nav-text">임직원 관리</span>
+          </a>
+          <a href="/popups" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            </span>
+            <span class="nav-text">팝업 관리</span>
+          </a>
+          <a href="/analytics" class="nav-item active">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+            </span>
+            <span class="nav-text">방문통계</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <a href="https://bizcoaching.co.kr" class="nav-item" target="_blank">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+            </span>
+            <span class="nav-text">사이트 보기</span>
+          </a>
+        </div>
+      </aside>
+
+      <!-- 메인 콘텐츠 -->
+      <main class="main-content">
+        <!-- 헤더 -->
+        <header class="dashboard-header">
+          <div class="header-left">
+            <button class="mobile-menu-btn" onclick="toggleSidebar()">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+            <div>
+              <h1 class="page-title">방문통계</h1>
+              <p class="page-subtitle">Google Analytics 데이터</p>
+            </div>
+          </div>
+          <div class="header-right">
+            <span class="user-name">관리자</span>
+            <button class="btn-logout" onclick="logout()">로그아웃</button>
+          </div>
+        </header>
+
+        <!-- 통합 기간 필터 -->
+        <div class="unified-filter-section">
+          <div class="filter-header">
+            <span class="filter-title">📅 조회 기간 설정</span>
+            <span class="filter-desc"
+              >설정한 기간이 모든 통계에 적용됩니다</span
+            >
+          </div>
+          <div class="filter-controls">
+            <div class="quick-period-btns">
+              <button class="quick-btn" data-days="1">오늘</button>
+              <button class="quick-btn active" data-days="7">7일</button>
+              <button class="quick-btn" data-days="14">14일</button>
+              <button class="quick-btn" data-days="30">30일</button>
+              <button class="quick-btn" data-days="90">90일</button>
+            </div>
+            <div class="date-range-inputs">
+              <label class="date-label">
+                시작일
+                <input type="date" id="startDate" class="date-input" />
+              </label>
+              <span class="date-separator">~</span>
+              <label class="date-label">
+                종료일
+                <input type="date" id="endDate" class="date-input" />
+              </label>
+              <button class="apply-btn" onclick="applyDateFilter()">
+                적용
+              </button>
+            </div>
+            <button class="refresh-btn" onclick="refreshData()">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M23 4v6h-6M1 20v-6h6" />
+                <path
+                  d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"
+                />
+              </svg>
+              새로고침
+            </button>
+          </div>
+          <div class="current-period-display">
+            <span class="period-icon">📊</span>
+            <span class="period-text" id="period-display">로딩 중...</span>
+          </div>
+        </div>
+
+        <!-- 통계 카드 -->
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <div class="stat-content">
+              <p class="stat-label">방문자</p>
+              <p class="stat-value" id="stat-visitors">-</p>
+              <p class="stat-change" id="stat-visitors-change">로딩 중...</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon icon-page">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                />
+                <polyline points="14,2 14,8 20,8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+              </svg>
+            </div>
+            <div class="stat-content">
+              <p class="stat-label">페이지뷰</p>
+              <p class="stat-value" id="stat-pageviews">-</p>
+              <p class="stat-change" id="stat-pageviews-change">로딩 중...</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon icon-time">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12,6 12,12 16,14" />
+              </svg>
+            </div>
+            <div class="stat-content">
+              <p class="stat-label">평균 체류시간</p>
+              <p class="stat-value" id="stat-duration">-</p>
+              <p class="stat-change" id="stat-duration-change">로딩 중...</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon icon-inbox">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16,17 21,12 16,7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </div>
+            <div class="stat-content">
+              <p class="stat-label">이탈률</p>
+              <p class="stat-value" id="stat-bounce">-</p>
+              <p class="stat-change" id="stat-bounce-change">로딩 중...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 추이 차트 (최근 7일) -->
+        <div class="charts-grid analytics-charts">
+          <div class="chart-card chart-card-wide">
+            <div class="chart-header">
+              <h3 class="chart-title" id="chart-title">
+                일별 방문 추이 (최근 7일)
+              </h3>
+              <div class="chart-legend">
+                <div class="legend-item">
+                  <span class="legend-color" style="background: #1e4a8d"></span
+                  >방문자
+                </div>
+                <div class="legend-item">
+                  <span class="legend-color" style="background: #10b981"></span
+                  >페이지뷰
+                </div>
+              </div>
+            </div>
+            <div class="chart-body" style="height: 200px">
+              <canvas id="trendChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- 분석 그리드 -->
+        <div class="charts-grid" style="margin-top: 20px">
+          <!-- 트래픽 소스 -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3 class="chart-title">🔗 트래픽 소스</h3>
+            </div>
+            <ul class="data-list" id="traffic-list">
+              <li class="data-list-item">
+                <span
+                  class="data-list-label loading-skeleton"
+                  style="width: 100px; height: 16px"
+                ></span>
+                <span
+                  class="data-list-value loading-skeleton"
+                  style="width: 50px; height: 16px"
+                ></span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- 유입 경로 (참조 URL) -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3 class="chart-title">🌐 유입 경로</h3>
+            </div>
+            <ul class="data-list" id="referrer-list">
+              <li class="data-list-item">
+                <span
+                  class="data-list-label loading-skeleton"
+                  style="width: 150px; height: 16px"
+                ></span>
+                <span
+                  class="data-list-value loading-skeleton"
+                  style="width: 40px; height: 16px"
+                ></span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- 기기별 -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3 class="chart-title">📱 기기별 사용자</h3>
+            </div>
+            <ul class="data-list" id="devices-list">
+              <li class="data-list-item">
+                <span
+                  class="data-list-label loading-skeleton"
+                  style="width: 100px; height: 16px"
+                ></span>
+                <span
+                  class="data-list-value loading-skeleton"
+                  style="width: 50px; height: 16px"
+                ></span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- 인기 페이지 -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3 class="chart-title">📄 인기 페이지</h3>
+            </div>
+            <ul class="data-list" id="pages-list">
+              <li class="data-list-item">
+                <span
+                  class="data-list-label loading-skeleton"
+                  style="width: 150px; height: 16px"
+                ></span>
+                <span
+                  class="data-list-value loading-skeleton"
+                  style="width: 40px; height: 16px"
+                ></span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- 지역별 -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3 class="chart-title">🌏 방문 지역</h3>
+            </div>
+            <ul class="data-list" id="geography-list">
+              <li class="data-list-item">
+                <span
+                  class="data-list-label loading-skeleton"
+                  style="width: 80px; height: 16px"
+                ></span>
+                <span
+                  class="data-list-value loading-skeleton"
+                  style="width: 40px; height: 16px"
+                ></span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 마지막 업데이트 -->
+        <div style="text-align: center; margin-top: 24px; padding: 16px">
+          <span class="last-updated" id="last-updated"></span>
+        </div>
+
+        <!-- ========== 히스토리 섹션 ========== -->
+        <div class="section-divider" style="margin-bottom: 100px">
+          <div
+            class="section-header"
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 20px;
+            "
+          >
+            <h2 class="section-title" style="margin: 0">
+              📊 기간별 누적 데이터
+            </h2>
+            <span
+              class="filter-sync-badge"
+              style="
+                font-size: 12px;
+                color: var(--primary);
+                background: rgba(30, 74, 141, 0.06);
+                padding: 4px 10px;
+                border-radius: 12px;
+              "
+            >
+              ⬆ 상단 필터와 연동됨
+            </span>
+          </div>
+
+          <!-- 기간 비교 (일간/주간/월간 한눈에) -->
+          <div class="compare-grid" id="compare-grid">
+            <div class="compare-card">
+              <div class="compare-title">📅 오늘 vs 어제</div>
+              <div id="compare-daily">
+                <div class="compare-row">
+                  <span class="compare-label">방문자</span>
+                  <div class="compare-values">
+                    <span
+                      class="compare-current loading-skeleton"
+                      style="width: 40px; height: 16px"
+                    ></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="compare-card">
+              <div class="compare-title">📆 이번 주 vs 지난 주</div>
+              <div id="compare-weekly">
+                <div class="compare-row">
+                  <span class="compare-label">방문자</span>
+                  <div class="compare-values">
+                    <span
+                      class="compare-current loading-skeleton"
+                      style="width: 40px; height: 16px"
+                    ></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="compare-card">
+              <div class="compare-title">🗓️ 이번 달 vs 지난 달</div>
+              <div id="compare-monthly">
+                <div class="compare-row">
+                  <span class="compare-label">방문자</span>
+                  <div class="compare-values">
+                    <span
+                      class="compare-current loading-skeleton"
+                      style="width: 40px; height: 16px"
+                    ></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 누적 추이 차트 -->
+          <div class="cumulative-chart-card">
+            <div class="cumulative-chart-header">
+              <span class="cumulative-chart-title">📈 장기 추이 차트</span>
+              <span style="font-size: 11px; color: var(--neutral-400)"
+                >매일 01:00 자동 수집</span
+              >
+            </div>
+            <div style="height: 250px">
+              <canvas id="historyChart"></canvas>
+            </div>
+          </div>
+
+          <!-- 히스토리 테이블 -->
+          <div class="cumulative-chart-card" style="margin-top: 16px">
+            <div
+              class="cumulative-chart-header"
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              "
+            >
+              <span class="cumulative-chart-title">📋 일별 상세 데이터</span>
+              <span
+                id="lastSyncTime"
+                style="font-size: 12px; color: var(--neutral-500)"
+                >마지막 수집: -</span
+              >
+            </div>
+            <div class="history-table-wrapper">
+              <table class="history-table">
+                <thead>
+                  <tr>
+                    <th>날짜</th>
+                    <th>방문자</th>
+                    <th>페이지뷰</th>
+                    <th>평균 체류</th>
+                    <th>이탈률</th>
+                  </tr>
+                </thead>
+                <tbody id="history-table-body">
+                  <tr>
+                    <td colspan="5" class="table-empty">
+                      데이터를 불러오는 중...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- 페이지네이션 -->
+            <div class="pagination-container" id="history-pagination">
+              <div class="pagination-info" id="pagination-info">
+                총 0개 중 0-0
+              </div>
+              <div class="pagination-controls" id="pagination-controls">
+                <!-- JavaScript로 동적 생성 -->
+              </div>
+              <div class="page-size-selector">
+                <span>페이지당</span>
+                <select
+                  id="page-size-select"
+                  onchange="changePageSize(this.value)"
+                >
+                  <option value="10">10개</option>
+                  <option value="20" selected>20개</option>
+                  <option value="50">50개</option>
+                  <option value="100">100개</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 기간 분석 평가 -->
+          <div class="analysis-summary" id="analysis-summary">
+            <div class="analysis-header">
+              <span>💡</span>
+              <span class="analysis-title">기간 분석 평가</span>
+            </div>
+            <div class="analysis-content" id="analysis-content">
+              <div class="analysis-item">
+                <div class="analysis-label">분석 중...</div>
+                <div class="analysis-text">데이터를 불러오는 중입니다.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- 하단 메뉴바 (모바일) -->
+    <nav class="bottom-nav">
+      <ul class="bottom-nav-list">
+        <li class="bottom-nav-item">
+          <a href="/" class="bottom-nav-link"
+            ><span class="bottom-nav-icon"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" /></svg></span
+            ><span class="bottom-nav-text">대시보드</span></a
+          >
+        </li>
+        <li class="bottom-nav-item">
+          <a href="/leads" class="bottom-nav-link"
+            ><span class="bottom-nav-icon"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                <path
+                  d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
+                /></svg></span
+            ><span class="bottom-nav-text">접수</span></a
+          >
+        </li>
+        <li class="bottom-nav-item">
+          <a href="/board" class="bottom-nav-link"
+            ><span class="bottom-nav-icon"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                />
+                <path
+                  d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                /></svg></span
+            ><span class="bottom-nav-text">게시판</span></a
+          >
+        </li>
+        <li class="bottom-nav-item">
+          <a href="/analytics" class="bottom-nav-link active"
+            ><span class="bottom-nav-icon"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" /></svg></span
+            ><span class="bottom-nav-text">통계</span></a
+          >
+        </li>
+      </ul>
+    </nav>
+
+    <script src="/js/components.js"></script>
+    <script>
+      // ============================================================
+      // GA4 Analytics Worker URL
+      // ============================================================
+      const GA4_API_URL = WORKER_URL; // admin-auth.js에서 정의
+
+      // 통합 필터 상태
+      let filterDays = 7; // 기본값: 7일
+      let filterStartDate = null;
+      let filterEndDate = null;
+      let trendChart = null;
+      let analyticsData = null;
+
+      // 사이드바 토글
+      function toggleSidebar() {
+        document.querySelector(".sidebar").classList.toggle("open");
+        document.querySelector(".sidebar-overlay").classList.toggle("open");
+      }
+
+      // 로그아웃
+      function logout() {
+        if (confirm("로그아웃 하시겠습니까?")) {
+          localStorage.removeItem("bizcoach_admin_auth");
+          window.location.href = "/";
+        }
+      }
+
+      // 초기화
+      document.addEventListener("DOMContentLoaded", function () {
+        initUnifiedFilter();
+        initDateInputs();
+
+        if (GA4_API_URL) {
+          loadAllDataWithFilter();
+        } else {
+          showApiNotConfigured();
+        }
+      });
+
+      // 통합 필터 초기화
+      function initUnifiedFilter() {
+        const quickBtns = document.querySelectorAll(".quick-btn");
+        quickBtns.forEach((btn) => {
+          btn.addEventListener("click", function () {
+            quickBtns.forEach((b) => b.classList.remove("active"));
+            this.classList.add("active");
+            filterDays = parseInt(this.dataset.days);
+
+            // 날짜 입력 초기화
+            filterStartDate = null;
+            filterEndDate = null;
+            document.getElementById("startDate").value = "";
+            document.getElementById("endDate").value = "";
+
+            // 모든 데이터 새로고침
+            loadAllDataWithFilter();
+          });
+        });
+      }
+
+      // 날짜 입력 초기화
+      function initDateInputs() {
+        const today = new Date();
+        const todayStr = today.toISOString().split("T")[0];
+
+        // 최대 날짜를 오늘로 설정
+        document.getElementById("startDate").max = todayStr;
+        document.getElementById("endDate").max = todayStr;
+      }
+
+      // 날짜 필터 적용
+      function applyDateFilter() {
+        const startInput = document.getElementById("startDate").value;
+        const endInput = document.getElementById("endDate").value;
+
+        if (!startInput || !endInput) {
+          alert("시작일과 종료일을 모두 선택해주세요.");
+          return;
+        }
+
+        if (startInput > endInput) {
+          alert("시작일이 종료일보다 늦을 수 없습니다.");
+          return;
+        }
+
+        filterStartDate = startInput;
+        filterEndDate = endInput;
+
+        // 빠른 선택 버튼 비활성화
+        document
+          .querySelectorAll(".quick-btn")
+          .forEach((b) => b.classList.remove("active"));
+
+        // 일수 계산
+        const start = new Date(startInput);
+        const end = new Date(endInput);
+        filterDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+
+        // 모든 데이터 새로고침
+        loadAllDataWithFilter();
+      }
+
+      // 모든 데이터를 필터에 맞춰 로드
+      async function loadAllDataWithFilter() {
+        // 기간 표시 업데이트
+        updatePeriodDisplay();
+
+        // 각 데이터를 독립적으로 로드 (하나가 실패해도 다른 것은 계속)
+        try {
+          await loadAnalyticsDataWithFilter();
+        } catch (e) {
+          console.error("Analytics load error:", e);
+        }
+
+        try {
+          await loadHistoryDataWithFilter();
+        } catch (e) {
+          console.error("History load error:", e);
+        }
+
+        try {
+          await loadCompareData();
+        } catch (e) {
+          console.error("Compare load error:", e);
+        }
+
+        // 남은 로딩 스켈레톤 정리
+        document.querySelectorAll(".loading-skeleton").forEach((el) => {
+          el.classList.remove("loading-skeleton");
+          if (!el.textContent.trim()) el.textContent = "-";
+        });
+      }
+
+      // API 미설정 상태 표시
+      function showApiNotConfigured() {
+        document.getElementById("period-display").textContent = "API 연동 필요";
+        [
+          "stat-visitors",
+          "stat-pageviews",
+          "stat-duration",
+          "stat-bounce",
+        ].forEach((id) => {
+          document.getElementById(id).textContent = "-";
+        });
+        [
+          "stat-visitors-change",
+          "stat-pageviews-change",
+          "stat-duration-change",
+          "stat-bounce-change",
+        ].forEach((id) => {
+          const el = document.getElementById(id);
+          el.textContent = "GA4 Worker API를 설정해주세요";
+          el.className = "stat-change";
+        });
+
+        // 로딩 스켈레톤 제거
+        document.querySelectorAll(".loading-skeleton").forEach((el) => {
+          el.classList.remove("loading-skeleton");
+          el.textContent = "-";
+        });
+
+        document.getElementById("last-updated").textContent =
+          "API URL 설정 후 데이터가 표시됩니다";
+        document.getElementById("lastSyncTime").textContent = "API 미연결";
+        document.getElementById("history-table-body").innerHTML =
+          '<tr><td colspan="5" class="table-empty">GA4 Worker API를 먼저 설정해주세요</td></tr>';
+      }
+
+      // 기간 표시 업데이트
+      function updatePeriodDisplay() {
+        const today = new Date();
+        let startDate, endDate;
+
+        if (filterStartDate && filterEndDate) {
+          startDate = filterStartDate;
+          endDate = filterEndDate;
+        } else {
+          endDate = today.toISOString().split("T")[0];
+          const start = new Date(today);
+          start.setDate(today.getDate() - filterDays + 1);
+          startDate = start.toISOString().split("T")[0];
+        }
+
+        const formatKorDate = (dateStr) => {
+          const [y, m, d] = dateStr.split("-");
+          return `${y}.${m}.${d}`;
+        };
+
+        const displayText =
+          filterDays === 1
+            ? `${formatKorDate(endDate)} (오늘)`
+            : `${formatKorDate(startDate)} ~ ${formatKorDate(endDate)} (${filterDays}일간)`;
+
+        document.getElementById("period-display").textContent = displayText;
+      }
+
+      // 필터 적용된 분석 데이터 로드
+      async function loadAnalyticsDataWithFilter() {
+        if (!GA4_API_URL) return;
+
+        try {
+          showLoading();
+
+          // 현재 필터에 맞는 period 결정
+          let period = "daily";
+          if (filterDays >= 7 && filterDays < 30) period = "weekly";
+          else if (filterDays >= 30) period = "monthly";
+
+          const response = await fetch(
+            `${GA4_API_URL}/analytics/all?period=${period}`,
+          );
+
+          if (!response.ok) {
+            throw new Error("API 요청 실패");
+          }
+
+          analyticsData = await response.json();
+          renderDashboard(analyticsData);
+        } catch (error) {
+          console.error("데이터 로드 실패:", error);
+          showError("데이터를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.");
+        }
+      }
+
+      // 필터 적용된 히스토리 데이터 로드
+      async function loadHistoryDataWithFilter() {
+        if (!GA4_API_URL) return;
+
+        currentPage = 1;
+        historyDays = filterDays;
+
+        try {
+          const response = await fetch(
+            `${GA4_API_URL}/history/cached?days=${filterDays}`,
+          );
+          if (!response.ok) {
+            throw new Error("히스토리 API 요청 실패");
+          }
+          historyData = await response.json();
+
+          let filteredData = historyData.data || [];
+
+          // 날짜 범위로 필터링
+          if (filterStartDate && filterEndDate) {
+            filteredData = filteredData.filter(
+              (d) => d.date >= filterStartDate && d.date <= filterEndDate,
+            );
+          }
+
+          renderHistoryTable(filteredData);
+          renderHistoryChart(filteredData);
+          updateLastSyncTime(filteredData);
+
+          // 분석 평가 생성
+          generateAnalysisSummary(filteredData);
+        } catch (error) {
+          console.error("히스토리 데이터 로드 실패:", error);
+          renderHistoryTable([]);
+          updateLastSyncTime([]);
+        }
+      }
+
+      // 분석 평가 생성
+      function generateAnalysisSummary(data) {
+        const container = document.getElementById("analysis-content");
+
+        if (!data || data.length === 0) {
+          container.innerHTML = `
+          <div class="analysis-item neutral">
+            <div class="analysis-label">데이터 없음</div>
+            <div class="analysis-text">선택한 기간에 수집된 데이터가 없습니다.</div>
+          </div>
+        `;
+          return;
+        }
+
+        // 통계 계산
+        const totalVisitors = data.reduce(
+          (sum, d) => sum + (d.visitors || 0),
+          0,
+        );
+        const totalPageviews = data.reduce(
+          (sum, d) => sum + (d.pageviews || 0),
+          0,
+        );
+        const avgDuration =
+          data.reduce((sum, d) => sum + (d.avg_duration || 0), 0) / data.length;
+        const avgBounce =
+          data.reduce((sum, d) => sum + (d.bounce_rate || 0), 0) / data.length;
+        const avgVisitorsPerDay = totalVisitors / data.length;
+
+        // 추세 분석 (첫 절반 vs 나중 절반)
+        const halfLen = Math.floor(data.length / 2);
+        const sortedData = [...data].sort((a, b) =>
+          a.date.localeCompare(b.date),
+        );
+        const firstHalf = sortedData.slice(0, halfLen);
+        const secondHalf = sortedData.slice(halfLen);
+
+        const firstHalfAvg =
+          firstHalf.reduce((sum, d) => sum + (d.visitors || 0), 0) /
+          (firstHalf.length || 1);
+        const secondHalfAvg =
+          secondHalf.reduce((sum, d) => sum + (d.visitors || 0), 0) /
+          (secondHalf.length || 1);
+        const trendChange =
+          firstHalfAvg > 0
+            ? (((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100).toFixed(1)
+            : 0;
+
+        // 분석 항목 생성
+        const analyses = [];
+
+        // 1. 총 방문자 분석
+        const visitorStatus =
+          totalVisitors > 100
+            ? "positive"
+            : totalVisitors > 30
+              ? "neutral"
+              : "negative";
+        analyses.push({
+          status: visitorStatus,
+          label: "📊 총 방문자",
+          text: `선택 기간 동안 총 ${totalVisitors.toLocaleString()}명이 방문했습니다. 일 평균 ${avgVisitorsPerDay.toFixed(1)}명입니다.`,
+        });
+
+        // 2. 추세 분석
+        if (data.length >= 4) {
+          const trendStatus =
+            parseFloat(trendChange) > 10
+              ? "positive"
+              : parseFloat(trendChange) < -10
+                ? "negative"
+                : "neutral";
+          const trendText =
+            parseFloat(trendChange) > 0
+              ? `방문자가 ${trendChange}% 증가하는 상승 추세입니다.`
+              : parseFloat(trendChange) < 0
+                ? `방문자가 ${Math.abs(trendChange)}% 감소하는 하락 추세입니다.`
+                : "방문자 수가 안정적으로 유지되고 있습니다.";
+          analyses.push({
+            status: trendStatus,
+            label: "📈 추세 분석",
+            text: `기간 전반부 대비 후반부 기준, ${trendText}`,
+          });
+        }
+
+        // 3. 체류시간 분석
+        const durationMins = Math.floor(avgDuration / 60);
+        const durationSecs = Math.round(avgDuration % 60);
+        const durationStatus =
+          avgDuration > 180
+            ? "positive"
+            : avgDuration > 60
+              ? "neutral"
+              : "negative";
+        const durationAdvice =
+          avgDuration > 180
+            ? "콘텐츠에 대한 관심도가 높습니다."
+            : avgDuration > 60
+              ? "적정 수준의 체류시간입니다."
+              : "콘텐츠 개선으로 체류시간을 늘려보세요.";
+        analyses.push({
+          status: durationStatus,
+          label: "⏱️ 체류시간",
+          text: `평균 체류시간 ${durationMins}분 ${durationSecs}초. ${durationAdvice}`,
+        });
+
+        // 4. 이탈률 분석
+        const bouncePercent = Math.round(avgBounce * 100);
+        const bounceStatus =
+          bouncePercent < 50
+            ? "positive"
+            : bouncePercent < 70
+              ? "neutral"
+              : "negative";
+        const bounceAdvice =
+          bouncePercent < 50
+            ? "우수한 이탈률입니다."
+            : bouncePercent < 70
+              ? "평균적인 이탈률입니다."
+              : "랜딩 페이지 개선이 필요합니다.";
+        analyses.push({
+          status: bounceStatus,
+          label: "🚪 이탈률",
+          text: `평균 이탈률 ${bouncePercent}%. ${bounceAdvice}`,
+        });
+
+        // 5. 페이지뷰 분석
+        const pagesPerVisit =
+          totalVisitors > 0 ? (totalPageviews / totalVisitors).toFixed(1) : 0;
+        const pvStatus =
+          pagesPerVisit > 3
+            ? "positive"
+            : pagesPerVisit > 1.5
+              ? "neutral"
+              : "negative";
+        analyses.push({
+          status: pvStatus,
+          label: "📄 페이지뷰",
+          text: `방문자당 평균 ${pagesPerVisit}개 페이지 조회. 총 ${totalPageviews.toLocaleString()}회 페이지뷰.`,
+        });
+
+        // HTML 생성
+        container.innerHTML = analyses
+          .map(
+            (a) => `
+        <div class="analysis-item ${a.status}">
+          <div class="analysis-label">${a.label}</div>
+          <div class="analysis-text">${a.text}</div>
+        </div>
+      `,
+          )
+          .join("");
+      }
+
+      // 대시보드 렌더링
+      function renderDashboard(data) {
+        // 기간 표시는 updatePeriodDisplay에서 관리
+
+        // 통계 카드
+        if (data.overview) {
+          renderOverview(data.overview);
+        }
+
+        // 추이 차트
+        if (data.trend) {
+          renderTrendChart(data.trend);
+        }
+
+        // 트래픽 소스
+        if (data.traffic) {
+          renderTrafficSources(data.traffic);
+        }
+
+        // 기기별
+        if (data.devices) {
+          renderDevices(data.devices);
+        }
+
+        // 인기 페이지
+        if (data.pages) {
+          renderTopPages(data.pages);
+        }
+
+        // 지역별
+        if (data.geography) {
+          renderGeography(data.geography);
+        } else {
+          document.getElementById("geography-list").innerHTML =
+            '<li class="data-list-item"><span class="data-list-label" style="color:var(--neutral-400)">지역 데이터는 수집 기간이 더 필요합니다</span></li>';
+        }
+
+        // 유입 경로
+        if (data.referrers) {
+          renderReferrers(data.referrers);
+        } else {
+          document.getElementById("referrer-list").innerHTML =
+            '<li class="data-list-item"><span class="data-list-label" style="color:var(--neutral-400)">상세 유입 경로는 트래픽 소스에서 확인하세요</span></li>';
+        }
+
+        // 마지막 업데이트
+        document.getElementById("last-updated").textContent =
+          `마지막 업데이트: ${new Date().toLocaleString("ko-KR")}`;
+      }
+
+      // 개요 통계 렌더링
+      function renderOverview(overview) {
+        document.getElementById("stat-visitors").textContent =
+          overview.visitors.value.toLocaleString() + "명";
+        renderChange("stat-visitors-change", overview.visitors.change);
+
+        document.getElementById("stat-pageviews").textContent =
+          overview.pageviews.value.toLocaleString() + "회";
+        renderChange("stat-pageviews-change", overview.pageviews.change);
+
+        document.getElementById("stat-duration").textContent =
+          overview.duration.value;
+        renderChange("stat-duration-change", overview.duration.change);
+
+        document.getElementById("stat-bounce").textContent =
+          overview.bounceRate.value + "%";
+        renderChange("stat-bounce-change", overview.bounceRate.change, true);
+      }
+
+      // 변화율 표시
+      function renderChange(elementId, change, isReverse = false) {
+        const el = document.getElementById(elementId);
+        const isPositive = isReverse ? change < 0 : change > 0;
+        const sign = change >= 0 ? "+" : "";
+        const periodLabel = getPeriodLabel();
+
+        el.textContent = `${sign}${change}% ${periodLabel}`;
+        el.className = `stat-change ${isPositive ? "positive" : "negative"}`;
+      }
+
+      // 기간 레이블
+      function getPeriodLabel() {
+        if (filterDays === 1) return "전일 대비";
+        if (filterDays <= 7) return "전주 대비";
+        if (filterDays <= 30) return "전월 대비";
+        return "이전 기간 대비";
+      }
+
+      // 추이 차트 렌더링
+      function renderTrendChart(trendData) {
+        const ctx = document.getElementById("trendChart").getContext("2d");
+
+        // 필터에 따른 제목 설정
+        let chartTitle = "방문 추이";
+        if (filterDays === 1) chartTitle = "오늘 방문 추이";
+        else if (filterDays <= 7)
+          chartTitle = `일별 방문 추이 (${filterDays}일)`;
+        else if (filterDays <= 30)
+          chartTitle = `일별 방문 추이 (${filterDays}일)`;
+        else chartTitle = `장기 방문 추이 (${filterDays}일)`;
+        document.getElementById("chart-title").textContent = chartTitle;
+
+        if (trendChart) {
+          trendChart.destroy();
+        }
+
+        let trendItems = trendData.trend || [];
+        if (filterDays <= 7 && trendItems.length > 7) {
+          trendItems = trendItems.slice(-7);
+        }
+        const labels = trendItems.map((item) => formatChartDate(item.date));
+        const visitors = trendItems.map((item) => item.visitors);
+        const pageviews = trendItems.map((item) => item.pageviews);
+
+        trendChart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "방문자",
+                data: visitors,
+                borderColor: "#1e4a8d",
+                backgroundColor: "rgba(30, 74, 141, 0.06)",
+                fill: true,
+                tension: 0.4,
+                borderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+              },
+              {
+                label: "페이지뷰",
+                data: pageviews,
+                borderColor: "#10b981",
+                backgroundColor: "transparent",
+                tension: 0.4,
+                borderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+              mode: "index",
+              intersect: false,
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: "white",
+                titleColor: "#0f2442",
+                bodyColor: "#475569",
+                borderColor: "#e2e8f0",
+                borderWidth: 1,
+                padding: 12,
+              },
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: { font: { size: 11 } },
+              },
+              y: {
+                beginAtZero: true,
+                grid: { color: "#f1f5f9" },
+                ticks: { font: { size: 11 } },
+              },
+            },
+          },
+        });
+      }
+
+      // 트래픽 소스 렌더링
+      function renderTrafficSources(trafficData) {
+        const list = document.getElementById("traffic-list");
+
+        if (!trafficData.sources || trafficData.sources.length === 0) {
+          list.innerHTML =
+            '<li class="data-list-item"><span class="data-list-label">데이터 없음</span></li>';
+          return;
+        }
+
+        const colorMap = {
+          Direct: "#1e4a8d",
+          "Organic Search": "#10b981",
+          Referral: "#f59e0b",
+          Social: "#3b82f6",
+          Email: "#ef4444",
+          "Paid Search": "#3b82f6",
+        };
+
+        list.innerHTML = trafficData.sources
+          .map(
+            (source) => `
+        <li class="data-list-item">
+          <div style="flex:1">
+            <div class="data-list-label">
+              <span style="width:8px;height:8px;background:${colorMap[source.source] || "#64748b"};border-radius:2px"></span>
+              ${translateSource(source.source)}
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width:${source.percentage}%;background:${colorMap[source.source] || "#64748b"}"></div>
+            </div>
+          </div>
+          <span class="data-list-value">${source.sessions}회<span class="data-list-badge">${source.percentage}%</span></span>
+        </li>
+      `,
+          )
+          .join("");
+      }
+
+      // 기기별 렌더링
+      function renderDevices(devicesData) {
+        const list = document.getElementById("devices-list");
+
+        if (!devicesData.devices || devicesData.devices.length === 0) {
+          list.innerHTML =
+            '<li class="data-list-item"><span class="data-list-label">데이터 없음</span></li>';
+          return;
+        }
+
+        const iconMap = { mobile: "📱", desktop: "💻", tablet: "📲" };
+        const colorMap = {
+          mobile: "#1e4a8d",
+          desktop: "#10b981",
+          tablet: "#f59e0b",
+        };
+
+        list.innerHTML = devicesData.devices
+          .map(
+            (device) => `
+        <li class="data-list-item">
+          <div style="flex:1">
+            <div class="data-list-label">
+              ${iconMap[device.device] || "🖥️"} ${translateDevice(device.device)}
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width:${device.percentage}%;background:${colorMap[device.device] || "#64748b"}"></div>
+            </div>
+          </div>
+          <span class="data-list-value">${device.users}명<span class="data-list-badge">${device.percentage}%</span></span>
+        </li>
+      `,
+          )
+          .join("");
+      }
+
+      // 인기 페이지 렌더링
+      function renderTopPages(pagesData) {
+        const list = document.getElementById("pages-list");
+
+        if (!pagesData.pages || pagesData.pages.length === 0) {
+          list.innerHTML =
+            '<li class="data-list-item"><span class="data-list-label">데이터 없음</span></li>';
+          return;
+        }
+
+        list.innerHTML = pagesData.pages
+          .map(
+            (page, idx) => `
+        <li class="data-list-item">
+          <span class="data-list-label">
+            <span style="width:20px;height:20px;background:var(--primary);color:white;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">${idx + 1}</span>
+            ${translatePage(page.path)}
+          </span>
+          <span class="data-list-value">${page.views}회</span>
+        </li>
+      `,
+          )
+          .join("");
+      }
+
+      // 지역별 렌더링
+      function renderGeography(geoData) {
+        const list = document.getElementById("geography-list");
+
+        if (!geoData.regions || geoData.regions.length === 0) {
+          list.innerHTML =
+            '<li class="data-list-item"><span class="data-list-label">데이터 없음</span></li>';
+          return;
+        }
+
+        list.innerHTML = geoData.regions
+          .map(
+            (region) => `
+        <li class="data-list-item">
+          <span class="data-list-label">📍 ${region.city === "(not set)" ? "미확인" : region.city}</span>
+          <span class="data-list-value">${region.users}명</span>
+        </li>
+      `,
+          )
+          .join("");
+      }
+
+      // 유입 경로 렌더링
+      function renderReferrers(referrersData) {
+        const list = document.getElementById("referrer-list");
+
+        if (!referrersData.referrers || referrersData.referrers.length === 0) {
+          list.innerHTML =
+            '<li class="data-list-item"><span class="data-list-label">데이터 없음</span></li>';
+          return;
+        }
+
+        list.innerHTML = referrersData.referrers
+          .map((ref) => {
+            const sourceName = translateReferrer(ref.source, ref.medium);
+            return `
+          <li class="data-list-item">
+            <div style="flex:1">
+              <div class="data-list-label">${sourceName}</div>
+              <div style="font-size:11px;color:var(--neutral-400);margin-top:2px">${ref.source} / ${ref.medium}</div>
+            </div>
+            <span class="data-list-value">${ref.sessions}회<span class="data-list-badge">${ref.percentage}%</span></span>
+          </li>
+        `;
+          })
+          .join("");
+      }
+
+      // 유입 경로 번역
+      function translateReferrer(source, medium) {
+        if (source === "(direct)" && medium === "(none)") return "🔗 직접 방문";
+        if (medium === "organic") return "🔍 검색 유입 (" + source + ")";
+        if (medium === "referral") return "🌐 외부 링크 (" + source + ")";
+        if (medium === "social") return "📱 소셜 (" + source + ")";
+        if (medium === "email") return "📧 이메일";
+        if (medium === "cpc" || medium === "ppc")
+          return "💰 유료 광고 (" + source + ")";
+        return "🔗 " + source;
+      }
+
+      // 유틸리티 함수들
+      function formatDate(dateStr) {
+        if (!dateStr) return "";
+        const year = dateStr.substring(0, 4);
+        const month = dateStr.substring(5, 7);
+        const day = dateStr.substring(8, 10);
+        return `${year}.${month}.${day}`;
+      }
+
+      function formatChartDate(dateStr) {
+        if (!dateStr) return "";
+        const month = dateStr.substring(4, 6);
+        const day = dateStr.substring(6, 8);
+        return `${parseInt(month)}/${parseInt(day)}`;
+      }
+
+      function translateSource(source) {
+        const map = {
+          Direct: "직접 방문",
+          "Organic Search": "검색 유입",
+          Referral: "참조 유입",
+          Social: "소셜 미디어",
+          Email: "이메일",
+          "Paid Search": "유료 검색",
+          "(none)": "직접 방문",
+        };
+        return map[source] || source;
+      }
+
+      function translateDevice(device) {
+        const map = { mobile: "모바일", desktop: "데스크톱", tablet: "태블릿" };
+        return map[device] || device;
+      }
+
+      function translatePage(path) {
+        const map = {
+          "/": "메인 페이지",
+          "/index.html": "메인 페이지",
+          "/about.html": "회사 소개",
+          "/about": "회사 소개",
+          "/process.html": "진행 프로세스",
+          "/process": "진행 프로세스",
+          "/fund.html": "정책자금",
+          "/fund": "정책자금",
+          "/service.html": "서비스",
+          "/service": "서비스",
+          "/marketing.html": "마케팅",
+          "/marketing": "마케팅",
+          "/post.html": "게시글",
+          "/post": "게시글",
+        };
+        return map[path] || path;
+      }
+
+      // 로딩 표시
+      function showLoading() {
+        document.getElementById("stat-visitors").textContent = "-";
+        document.getElementById("stat-pageviews").textContent = "-";
+        document.getElementById("stat-duration").textContent = "-";
+        document.getElementById("stat-bounce").textContent = "-";
+
+        [
+          "stat-visitors-change",
+          "stat-pageviews-change",
+          "stat-duration-change",
+          "stat-bounce-change",
+        ].forEach((id) => {
+          document.getElementById(id).textContent = "로딩 중...";
+          document.getElementById(id).className = "stat-change";
+        });
+      }
+
+      // 에러 표시
+      function showError(message) {
+        document.getElementById("period-display").textContent = "오류 발생";
+        [
+          "stat-visitors",
+          "stat-pageviews",
+          "stat-duration",
+          "stat-bounce",
+        ].forEach((id) => {
+          document.getElementById(id).textContent = "-";
+        });
+        [
+          "stat-visitors-change",
+          "stat-pageviews-change",
+          "stat-duration-change",
+          "stat-bounce-change",
+        ].forEach((id) => {
+          document.getElementById(id).textContent = message;
+          document.getElementById(id).className = "stat-change negative";
+        });
+      }
+
+      // 새로고침
+      function refreshData() {
+        if (!GA4_API_URL) {
+          alert("GA4 Worker API URL을 먼저 설정해주세요.");
+          return;
+        }
+        const btn = document.querySelector(".refresh-btn");
+        btn.classList.add("loading");
+        loadAllDataWithFilter().finally(() => {
+          btn.classList.remove("loading");
+        });
+      }
+
+      // ========== 히스토리 섹션 로직 ==========
+      let historyDays = 7;
+      let historyChart = null;
+      let historyData = null;
+
+      // 페이지네이션 상태
+      let currentPage = 1;
+      let pageSize = 20;
+      let allHistoryData = []; // 전체 데이터 저장
+
+      // 히스토리 데이터 로드 (Airtable 캐시 우선 조회) - 레거시 지원용
+      async function loadHistoryData(forceRefresh = false) {
+        if (!GA4_API_URL) return;
+
+        // 기간 변경 시 페이지 초기화
+        currentPage = 1;
+
+        try {
+          // 기본적으로 Airtable 캐시 조회 (API 제한 방지)
+          const endpoint = forceRefresh
+            ? `${GA4_API_URL}/history/stats?days=${historyDays}`
+            : `${GA4_API_URL}/history/cached?days=${historyDays}`;
+
+          const response = await fetch(endpoint);
+          if (!response.ok) {
+            throw new Error("히스토리 API 요청 실패");
+          }
+          historyData = await response.json();
+
+          // 캐시 데이터인 경우 표시
+          if (historyData.cached) {
+            console.log("📦 캐시된 데이터 사용 (Airtable)");
+          }
+
+          renderHistoryTable(historyData.data || []);
+          renderHistoryChart(historyData.data || []);
+          updateLastSyncTime(historyData.data || []);
+        } catch (error) {
+          console.error("히스토리 데이터 로드 실패:", error);
+          renderHistoryTable([]);
+          updateLastSyncTime([]);
+          if (analyticsData && analyticsData.trend) {
+            renderHistoryChart(analyticsData.trend.trend || []);
+          }
+        }
+      }
+
+      // 마지막 수집 시점 표시
+      function updateLastSyncTime(data) {
+        const el = document.getElementById("lastSyncTime");
+        if (!data || data.length === 0) {
+          el.textContent = "마지막 수집: 데이터 없음";
+          return;
+        }
+        const sortedData = [...data].sort((a, b) =>
+          b.date.localeCompare(a.date),
+        );
+        const latestDate = sortedData[0].date;
+        const [year, month, day] = latestDate.split("-");
+        el.textContent = `마지막 수집: ${year.slice(2)}.${month}.${day} 01:00 (KST) • 매일 자동 수집`;
+      }
+
+      // 기간 비교 데이터 로드 (캐시 기반으로 계산)
+      async function loadCompareData() {
+        if (!GA4_API_URL) return;
+
+        try {
+          // 캐시된 히스토리 데이터 사용 (API 제한 방지)
+          const response = await fetch(`${GA4_API_URL}/history/cached?days=60`);
+          if (!response.ok) throw new Error("캐시 데이터 조회 실패");
+
+          const result = await response.json();
+          const data = result.data || [];
+
+          if (data.length < 2) {
+            console.log("비교할 데이터 부족");
+            return;
+          }
+
+          // 날짜 기준 정렬 (최신순)
+          data.sort((a, b) => b.date.localeCompare(a.date));
+
+          // 일간 비교 (어제 vs 그저께)
+          const daily = calculateCompare(data, 0, 1);
+          renderCompareCard("compare-daily", daily, "전일");
+
+          // 주간 비교 (최근 7일 vs 이전 7일)
+          const weekly = calculateWeeklyCompare(data);
+          renderCompareCard("compare-weekly", weekly, "전주");
+
+          // 월간 비교 (최근 30일 vs 이전 30일)
+          const monthly = calculateMonthlyCompare(data);
+          renderCompareCard("compare-monthly", monthly, "전월");
+        } catch (error) {
+          console.error("비교 데이터 로드 실패:", error);
+        }
+      }
+
+      // 단순 일간 비교 계산
+      function calculateCompare(data, currentIdx, prevIdx) {
+        const current = data[currentIdx] || {
+          visitors: 0,
+          pageviews: 0,
+          avg_duration: 0,
+          bounce_rate: 0,
+        };
+        const prev = data[prevIdx] || current;
+
+        const calcChange = (curr, prv) => {
+          if (prv === 0) return curr > 0 ? 100 : 0;
+          return Math.round(((curr - prv) / prv) * 100);
+        };
+
+        const formatDuration = (seconds) => {
+          const mins = Math.floor(seconds / 60);
+          const secs = Math.round(seconds % 60);
+          return `${mins}분 ${secs}초`;
+        };
+
+        return {
+          visitors: {
+            value: current.visitors,
+            change: calcChange(current.visitors, prev.visitors),
+          },
+          pageviews: {
+            value: current.pageviews,
+            change: calcChange(current.pageviews, prev.pageviews),
+          },
+          duration: {
+            value: formatDuration(current.avg_duration),
+            change: calcChange(current.avg_duration, prev.avg_duration),
+          },
+          bounceRate: {
+            value: Math.round(current.bounce_rate * 100),
+            change: calcChange(current.bounce_rate, prev.bounce_rate),
+          },
+        };
+      }
+
+      // 주간 비교 계산 (최근 7일 vs 이전 7일)
+      function calculateWeeklyCompare(data) {
+        const current = data.slice(0, 7).reduce(
+          (acc, d) => ({
+            visitors: acc.visitors + (d.visitors || 0),
+            pageviews: acc.pageviews + (d.pageviews || 0),
+            avg_duration: acc.avg_duration + (d.avg_duration || 0),
+            bounce_rate: acc.bounce_rate + (d.bounce_rate || 0),
+          }),
+          { visitors: 0, pageviews: 0, avg_duration: 0, bounce_rate: 0 },
+        );
+
+        const prev = data.slice(7, 14).reduce(
+          (acc, d) => ({
+            visitors: acc.visitors + (d.visitors || 0),
+            pageviews: acc.pageviews + (d.pageviews || 0),
+            avg_duration: acc.avg_duration + (d.avg_duration || 0),
+            bounce_rate: acc.bounce_rate + (d.bounce_rate || 0),
+          }),
+          { visitors: 0, pageviews: 0, avg_duration: 0, bounce_rate: 0 },
+        );
+
+        // 평균 계산
+        const currentCount = Math.min(data.length, 7);
+        const prevCount = Math.min(Math.max(data.length - 7, 0), 7) || 1;
+        current.avg_duration /= currentCount || 1;
+        current.bounce_rate /= currentCount || 1;
+        prev.avg_duration /= prevCount;
+        prev.bounce_rate /= prevCount;
+
+        return calculateCompare([current, prev], 0, 1);
+      }
+
+      // 월간 비교 계산 (최근 30일 vs 이전 30일)
+      function calculateMonthlyCompare(data) {
+        const current = data.slice(0, 30).reduce(
+          (acc, d) => ({
+            visitors: acc.visitors + (d.visitors || 0),
+            pageviews: acc.pageviews + (d.pageviews || 0),
+            avg_duration: acc.avg_duration + (d.avg_duration || 0),
+            bounce_rate: acc.bounce_rate + (d.bounce_rate || 0),
+          }),
+          { visitors: 0, pageviews: 0, avg_duration: 0, bounce_rate: 0 },
+        );
+
+        const prev = data.slice(30, 60).reduce(
+          (acc, d) => ({
+            visitors: acc.visitors + (d.visitors || 0),
+            pageviews: acc.pageviews + (d.pageviews || 0),
+            avg_duration: acc.avg_duration + (d.avg_duration || 0),
+            bounce_rate: acc.bounce_rate + (d.bounce_rate || 0),
+          }),
+          { visitors: 0, pageviews: 0, avg_duration: 0, bounce_rate: 0 },
+        );
+
+        // 평균 계산
+        const currentCount = Math.min(data.length, 30);
+        const prevCount = Math.min(Math.max(data.length - 30, 0), 30) || 1;
+        current.avg_duration /= currentCount || 1;
+        current.bounce_rate /= currentCount || 1;
+        prev.avg_duration /= prevCount;
+        prev.bounce_rate /= prevCount;
+
+        return calculateCompare([current, prev], 0, 1);
+      }
+
+      // 비교 카드 렌더링
+      function renderCompareCard(elementId, data, prevLabel) {
+        const el = document.getElementById(elementId);
+        if (!data || !data.visitors) {
+          el.innerHTML =
+            '<div class="compare-row"><span class="compare-label">데이터 없음</span></div>';
+          return;
+        }
+
+        const rows = [
+          {
+            label: "방문자",
+            current: data.visitors.value,
+            change: data.visitors.change,
+            unit: "명",
+          },
+          {
+            label: "페이지뷰",
+            current: data.pageviews.value,
+            change: data.pageviews.change,
+            unit: "회",
+          },
+          {
+            label: "체류시간",
+            current: data.duration.value,
+            change: data.duration.change,
+            unit: "",
+          },
+          {
+            label: "이탈률",
+            current: data.bounceRate.value + "%",
+            change: data.bounceRate.change,
+            unit: "",
+            reverse: true,
+          },
+        ];
+
+        el.innerHTML = rows
+          .map((row) => {
+            const isPositive = row.reverse ? row.change < 0 : row.change > 0;
+            const changeClass = isPositive ? "positive" : "negative";
+            const sign = row.change >= 0 ? "+" : "";
+            return `
+          <div class="compare-row">
+            <span class="compare-label">${row.label}</span>
+            <div class="compare-values">
+              <span class="compare-current">${typeof row.current === "number" ? row.current.toLocaleString() : row.current}${row.unit}</span>
+              <span class="compare-change ${changeClass}">${sign}${row.change}%</span>
+            </div>
+          </div>
+        `;
+          })
+          .join("");
+      }
+
+      // 히스토리 테이블 렌더링 (페이지네이션 적용)
+      function renderHistoryTable(data) {
+        // 전체 데이터 저장
+        allHistoryData = data || [];
+
+        const tbody = document.getElementById("history-table-body");
+        const paginationContainer =
+          document.getElementById("history-pagination");
+
+        if (!allHistoryData || allHistoryData.length === 0) {
+          tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="table-empty">
+              저장된 히스토리 데이터가 없습니다.
+            </td>
+          </tr>
+        `;
+          paginationContainer.style.display = "none";
+          return;
+        }
+
+        // 페이지네이션 표시
+        paginationContainer.style.display = "flex";
+
+        // 데이터 정렬 (최신순)
+        const sortedData = [...allHistoryData].sort((a, b) =>
+          b.date.localeCompare(a.date),
+        );
+
+        // 페이지네이션 계산
+        const totalItems = sortedData.length;
+        const totalPages = Math.ceil(totalItems / pageSize);
+
+        // 현재 페이지가 범위를 벗어나면 조정
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = Math.min(startIndex + pageSize, totalItems);
+        const pageData = sortedData.slice(startIndex, endIndex);
+
+        // 월별로 그룹화 (현재 페이지 데이터만)
+        const groupedByMonth = {};
+        pageData.forEach((row) => {
+          const monthKey = row.date.substring(0, 7);
+          if (!groupedByMonth[monthKey]) {
+            groupedByMonth[monthKey] = [];
+          }
+          groupedByMonth[monthKey].push(row);
+        });
+
+        const monthKeys = Object.keys(groupedByMonth).sort((a, b) =>
+          b.localeCompare(a),
+        );
+        const currentMonth = new Date().toISOString().substring(0, 7);
+
+        let html = "";
+        monthKeys.forEach((monthKey, idx) => {
+          const monthData = groupedByMonth[monthKey];
+          const isCurrentMonth = monthKey === currentMonth;
+          const isExpanded = true; // 페이지네이션 적용 시 기본 펼침
+
+          const totalVisitors = monthData.reduce(
+            (sum, r) => sum + (r.visitors || 0),
+            0,
+          );
+          const totalPageviews = monthData.reduce(
+            (sum, r) => sum + (r.pageviews || 0),
+            0,
+          );
+          const avgDuration =
+            monthData.reduce((sum, r) => sum + (r.avg_duration || 0), 0) /
+            monthData.length;
+          const avgBounce =
+            monthData.reduce((sum, r) => sum + (r.bounce_rate || 0), 0) /
+            monthData.length;
+
+          const [year, month] = monthKey.split("-");
+          const monthLabel = `${year}년 ${parseInt(month)}월`;
+
+          html += `
+          <tr class="month-group-header ${isCurrentMonth ? "current" : ""}" data-month="${monthKey}" onclick="toggleMonthGroup('${monthKey}')">
+            <td data-label="">
+              <div class="month-toggle">
+                <span class="toggle-icon" id="icon-${monthKey}">${isExpanded ? "▼" : "▶"}</span>
+                <strong>${monthLabel}</strong>
+                <span class="month-count">(${monthData.length}일)</span>
+              </div>
+            </td>
+            <td data-label="방문자" class="table-value">${totalVisitors.toLocaleString()}명</td>
+            <td data-label="페이지뷰" class="table-value">${totalPageviews.toLocaleString()}회</td>
+            <td data-label="평균 체류">${formatDuration(avgDuration)}</td>
+            <td data-label="이탈률">${Math.round(avgBounce * 100)}%</td>
+          </tr>
+        `;
+
+          monthData.forEach((row) => {
+            const duration = row.avg_duration
+              ? formatDuration(row.avg_duration)
+              : "-";
+            const bounceRate = row.bounce_rate
+              ? Math.round(row.bounce_rate * 100) + "%"
+              : "-";
+            html += `
+            <tr class="month-detail-row" data-parent="${monthKey}" style="display: ${isExpanded ? "" : "none"}">
+              <td data-label="날짜">${formatHistoryDate(row.date)}</td>
+              <td data-label="방문자" class="table-value">${row.visitors?.toLocaleString() || 0}명</td>
+              <td data-label="페이지뷰" class="table-value">${row.pageviews?.toLocaleString() || 0}회</td>
+              <td data-label="평균 체류">${duration}</td>
+              <td data-label="이탈률">${bounceRate}</td>
+            </tr>
+          `;
+          });
+        });
+
+        tbody.innerHTML = html;
+
+        // 페이지네이션 UI 업데이트
+        renderPagination(totalItems, totalPages, startIndex, endIndex);
+      }
+
+      // 페이지네이션 UI 렌더링
+      function renderPagination(totalItems, totalPages, startIndex, endIndex) {
+        const infoEl = document.getElementById("pagination-info");
+        const controlsEl = document.getElementById("pagination-controls");
+
+        // 정보 표시
+        infoEl.textContent = `총 ${totalItems.toLocaleString()}개 중 ${startIndex + 1}-${endIndex}`;
+
+        // 페이지 버튼 생성
+        let controlsHtml = "";
+
+        // 이전 버튼
+        controlsHtml += `
+        <button class="pagination-btn nav-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? "disabled" : ""}>
+          ◀ 이전
+        </button>
+      `;
+
+        // 페이지 번호 버튼 (최대 5개 표시)
+        const maxVisiblePages = 5;
+        let startPage = Math.max(
+          1,
+          currentPage - Math.floor(maxVisiblePages / 2),
+        );
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+        if (endPage - startPage < maxVisiblePages - 1) {
+          startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+
+        if (startPage > 1) {
+          controlsHtml += `<button class="pagination-btn" onclick="goToPage(1)">1</button>`;
+          if (startPage > 2) {
+            controlsHtml += `<span style="padding: 0 4px; color: var(--neutral-400)">...</span>`;
+          }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+          controlsHtml += `
+          <button class="pagination-btn ${i === currentPage ? "active" : ""}" onclick="goToPage(${i})">${i}</button>
+        `;
+        }
+
+        if (endPage < totalPages) {
+          if (endPage < totalPages - 1) {
+            controlsHtml += `<span style="padding: 0 4px; color: var(--neutral-400)">...</span>`;
+          }
+          controlsHtml += `<button class="pagination-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+        }
+
+        // 다음 버튼
+        controlsHtml += `
+        <button class="pagination-btn nav-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? "disabled" : ""}>
+          다음 ▶
+        </button>
+      `;
+
+        controlsEl.innerHTML = controlsHtml;
+      }
+
+      // 페이지 이동
+      function goToPage(page) {
+        const totalPages = Math.ceil(allHistoryData.length / pageSize);
+        if (page < 1 || page > totalPages) return;
+
+        currentPage = page;
+        renderHistoryTable(allHistoryData);
+
+        // 테이블 상단으로 스크롤
+        document
+          .getElementById("history-table-body")
+          .scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      // 페이지 크기 변경
+      function changePageSize(newSize) {
+        pageSize = parseInt(newSize);
+        currentPage = 1; // 페이지 크기 변경 시 첫 페이지로
+        renderHistoryTable(allHistoryData);
+      }
+
+      // 월별 그룹 접힘/펼침 토글
+      function toggleMonthGroup(monthKey) {
+        const detailRows = document.querySelectorAll(
+          `tr[data-parent="${monthKey}"]`,
+        );
+        const icon = document.getElementById(`icon-${monthKey}`);
+        const isHidden = detailRows[0]?.style.display === "none";
+
+        detailRows.forEach((row) => {
+          row.style.display = isHidden ? "" : "none";
+        });
+
+        if (icon) {
+          icon.textContent = isHidden ? "▼" : "▶";
+        }
+      }
+
+      // 히스토리 차트 렌더링
+      function renderHistoryChart(data) {
+        const ctx = document.getElementById("historyChart").getContext("2d");
+
+        if (historyChart) {
+          historyChart.destroy();
+        }
+
+        if (!data || data.length === 0) {
+          historyChart = new Chart(ctx, {
+            type: "line",
+            data: { labels: [], datasets: [] },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false },
+              },
+            },
+          });
+          return;
+        }
+
+        const sortedData = [...data].sort((a, b) => {
+          const dateA = a.date || "";
+          const dateB = b.date || "";
+          return dateA.localeCompare(dateB);
+        });
+
+        const labels = sortedData.map((d) => formatHistoryChartDate(d.date));
+        const visitors = sortedData.map((d) => d.visitors || 0);
+        const pageviews = sortedData.map((d) => d.pageviews || 0);
+
+        historyChart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "방문자",
+                data: visitors,
+                borderColor: "#1e4a8d",
+                backgroundColor: "rgba(30, 74, 141, 0.06)",
+                fill: true,
+                tension: 0.3,
+                borderWidth: 2,
+                pointRadius: historyDays <= 14 ? 4 : 2,
+                pointHoverRadius: 6,
+              },
+              {
+                label: "페이지뷰",
+                data: pageviews,
+                borderColor: "#10b981",
+                backgroundColor: "transparent",
+                tension: 0.3,
+                borderWidth: 2,
+                pointRadius: historyDays <= 14 ? 4 : 2,
+                pointHoverRadius: 6,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+              legend: {
+                display: true,
+                position: "top",
+                align: "end",
+                labels: { boxWidth: 12, padding: 16, font: { size: 11 } },
+              },
+              tooltip: {
+                backgroundColor: "white",
+                titleColor: "#0f2442",
+                bodyColor: "#475569",
+                borderColor: "#e2e8f0",
+                borderWidth: 1,
+                padding: 12,
+              },
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: {
+                  font: { size: 10 },
+                  maxTicksLimit: historyDays <= 14 ? 7 : 10,
+                },
+              },
+              y: {
+                beginAtZero: true,
+                grid: { color: "#f1f5f9" },
+                ticks: { font: { size: 11 } },
+              },
+            },
+          },
+        });
+      }
+
+      // 유틸리티: 체류시간 포맷
+      function formatDuration(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.round(seconds % 60);
+        return `${mins}분 ${secs}초`;
+      }
+
+      // 유틸리티: 히스토리 날짜 포맷 (테이블용)
+      function formatHistoryDate(dateStr) {
+        if (!dateStr) return "-";
+        const year = dateStr.substring(0, 4);
+        const month = dateStr.substring(5, 7);
+        const day = dateStr.substring(8, 10);
+        const date = new Date(year, parseInt(month) - 1, day);
+        const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+        return `${month}.${day} (${dayNames[date.getDay()]})`;
+      }
+
+      // 유틸리티: 히스토리 날짜 포맷 (차트용)
+      function formatHistoryChartDate(dateStr) {
+        if (!dateStr) return "";
+        const month = dateStr.substring(5, 7);
+        const day = dateStr.substring(8, 10);
+        return `${parseInt(month)}/${parseInt(day)}`;
+      }
+    </script>
+  </body>
+</html>

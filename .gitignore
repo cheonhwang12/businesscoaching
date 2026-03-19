@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+scripts/node_modules/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Build output
+dist/
+
+# IDE
+.vscode/
+.github/instructions/codacy.instructions.md
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# Vercel
+.vercel/
+
+# Wrangler
+.wrangler/
+scripts/.wrangler/
+
+# Temp
+*.tmp
+color-mockup.html
+wireframe-color.html
+glow-test.html
+*.psd
+*.ai

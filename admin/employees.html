@@ -1,0 +1,2092 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>임직원 관리 - 비지니스코칭</title>
+    <link rel="stylesheet" href="/css/dashboard.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css"
+    />
+    <script src="/js/admin-auth.js"></script>
+    <style>
+      .profile-preview {
+        width: 60px;
+        height: 60px;
+        object-fit: cover;
+        border-radius: 50%;
+        background: var(--neutral-100);
+      }
+      .profile-placeholder {
+        width: 60px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--neutral-100);
+        border-radius: 50%;
+        color: var(--neutral-400);
+        font-size: 24px;
+      }
+      .employee-name-cell {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .employee-name-cell .info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .employee-name-cell .name {
+        font-weight: 600;
+        color: var(--neutral-800);
+      }
+      .employee-name-cell .position {
+        font-size: 13px;
+        color: var(--neutral-500);
+      }
+      .employee-table {
+        table-layout: fixed;
+        width: 100%;
+      }
+      .employee-table td {
+        vertical-align: middle;
+      }
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(30, 74, 141, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+      .loading-overlay.hidden {
+        display: none;
+      }
+      .loading-spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid rgba(255, 255, 255, 0.2);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 1s linear bizcoach;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .profile-upload {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .profile-preview-wrap {
+        position: relative;
+        width: 100px;
+        height: 100px;
+      }
+      .profile-upload-preview {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 50%;
+        background: var(--neutral-100);
+        border: 2px dashed var(--neutral-300);
+      }
+      .profile-upload-placeholder {
+        width: 100px;
+        height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--neutral-100);
+        border-radius: 50%;
+        border: 2px dashed var(--neutral-300);
+        color: var(--neutral-400);
+        font-size: 36px;
+      }
+      /* 이미지 위치 조정 컨테이너 */
+      .image-position-container {
+        margin-top: 16px;
+        display: none;
+      }
+      .image-position-container.active {
+        display: block;
+      }
+      .image-position-label {
+        font-size: 12px;
+        color: var(--neutral-500);
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      /* ========================================
+       실제 about.html 카드와 동일한 CSS
+       ======================================== */
+      .preview-card-wrapper {
+        max-width: 400px;
+        margin: 0 auto;
+      }
+      .preview-employee-card {
+        background: #ffffff;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(15, 36, 66, 0.04);
+        display: flex;
+        flex-direction: row;
+        min-height: 180px;
+        border: 2px solid var(--neutral-200);
+      }
+      .preview-image-area {
+        flex: 0 0 40%;
+        min-height: 180px;
+        background: linear-gradient(135deg, #e2e8f0 0%, #f1f5f9 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+        cursor: grab;
+      }
+      .preview-image-area:active {
+        cursor: grabbing;
+      }
+      .preview-avatar {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: center center;
+        pointer-events: none;
+        transition:
+          object-position 0.1s ease,
+          transform 0.1s ease;
+      }
+      .preview-info-area {
+        flex: 1;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .preview-name {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1e4a8d;
+        margin-bottom: 4px;
+      }
+      .preview-position {
+        font-size: 13px;
+        font-weight: 600;
+        color: #60a5fa;
+        margin-bottom: 8px;
+      }
+      .preview-intro {
+        font-size: 12px;
+        color: #64748b;
+        line-height: 1.5;
+      }
+      .preview-drag-hint {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(15, 36, 66, 0.4);
+        color: white;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        pointer-events: none;
+        opacity: 0.9;
+        white-space: nowrap;
+      }
+      .preview-drag-hint svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      /* 확대/축소 컨트롤 */
+      .zoom-control {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+        padding: 8px 12px;
+        background: var(--neutral-50);
+        border-radius: 8px;
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .zoom-control label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--neutral-600);
+        white-space: nowrap;
+      }
+      .zoom-slider {
+        flex: 1;
+        height: 4px;
+        -webkit-appearance: none;
+        background: var(--neutral-200);
+        border-radius: 2px;
+        outline: none;
+      }
+      .zoom-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 14px;
+        height: 14px;
+        background: var(--primary);
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      .zoom-control span {
+        font-size: 11px;
+        color: var(--neutral-500);
+        min-width: 36px;
+        text-align: right;
+      }
+      .image-position-value {
+        font-size: 11px;
+        color: var(--neutral-400);
+        margin-top: 8px;
+        text-align: center;
+      }
+      .profile-upload-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .badge-active {
+        background: #10b981;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .badge-inactive {
+        background: var(--neutral-200);
+        color: var(--neutral-600);
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .order-badge {
+        background: var(--neutral-100);
+        color: var(--neutral-700);
+        padding: 4px 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .intro-text {
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--neutral-600);
+        font-size: 13px;
+      }
+      .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      @media (max-width: 640px) {
+        .form-row {
+          grid-template-columns: 1fr;
+        }
+      }
+      .btn-danger-outline {
+        border-color: var(--error) !important;
+        color: var(--error) !important;
+      }
+      .btn-danger-outline:hover {
+        background: var(--error) !important;
+        color: white !important;
+      }
+      .upload-progress {
+        color: var(--primary);
+        font-weight: 500;
+      }
+      .specialty-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+      }
+      .specialty-badge.fund {
+        background: #ffffff;
+        color: #2563eb;
+      }
+      .specialty-badge.work {
+        background: #ffffff;
+        color: #047857;
+      }
+      .specialty-badge.industry {
+        background: #ffffff;
+        color: #b45309;
+      }
+      /* 체크박스 그룹 스타일 */
+      .checkbox-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 10px;
+        background: var(--neutral-50);
+        border: 1px solid var(--neutral-200);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        font-size: 13px;
+      }
+      .checkbox-item:hover {
+        background: var(--neutral-100);
+      }
+      .checkbox-item.checked {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: white;
+      }
+      .checkbox-item.checked.fund {
+        background: #2563eb;
+        border-color: #2563eb;
+      }
+      .checkbox-item.checked.work {
+        background: #047857;
+        border-color: #047857;
+      }
+      .checkbox-item.checked.industry-item {
+        background: #b45309;
+        border-color: #b45309;
+      }
+      .checkbox-item input[type="checkbox"] {
+        display: none;
+      }
+      .badge-category {
+        margin-bottom: 12px;
+      }
+      .badge-category-label {
+        font-size: 12px;
+        color: var(--neutral-500);
+        margin-bottom: 8px;
+        display: block;
+      }
+      .max-selection-hint {
+        font-size: 11px;
+        color: var(--neutral-400);
+        margin-top: 4px;
+      }
+      /* 모바일 테이블 반응형 */
+      @media (max-width: 768px) {
+        .employee-table {
+          display: block;
+        }
+        .employee-table thead {
+          display: none;
+        }
+        .employee-table tbody {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .employee-table tr {
+          display: block;
+          background: white;
+          border-radius: 12px;
+          padding: 16px;
+          border: 1px solid var(--neutral-200);
+          box-shadow: 0 1px 3px rgba(15, 36, 66, 0.04);
+        }
+        .employee-table td {
+          display: block;
+          padding: 4px 0;
+          border: none;
+        }
+        .employee-table td:first-child {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+        }
+        .employee-table tr {
+          position: relative;
+          padding-right: 60px;
+        }
+        .employee-name-cell {
+          margin-bottom: 8px;
+        }
+        .employee-name-cell .info .name {
+          font-size: 16px;
+        }
+        .intro-text {
+          max-width: 100%;
+          white-space: normal;
+          margin-bottom: 8px;
+        }
+        .employee-table td:nth-child(4) {
+          display: inline-block;
+          margin-right: 8px;
+        }
+        .employee-table td:last-child {
+          position: absolute;
+          bottom: 16px;
+          right: 16px;
+        }
+        .action-buttons {
+          gap: 8px;
+        }
+        .section-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+        }
+        .header-right .btn {
+          font-size: 13px;
+          padding: 8px 12px;
+        }
+        .header-right .btn svg {
+          display: none;
+        }
+        /* 하단바 공간 확보 */
+        .main-content {
+          padding-bottom: 50px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="dashboard-container">
+      <!-- 사이드바 오버레이 (모바일) -->
+      <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+      <!-- 사이드바 -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h1 class="logo">비지니스코칭</h1>
+          <span class="logo-sub">관리자</span>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a href="/" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>
+            </span>
+            <span class="nav-text">대시보드</span>
+          </a>
+          <a href="/leads" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                <path
+                  d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
+                />
+              </svg>
+            </span>
+            <span class="nav-text">접수내역</span>
+          </a>
+          <a href="/email" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
+                />
+                <polyline points="22,6 12,13 2,6" />
+              </svg>
+            </span>
+            <span class="nav-text">이메일 발송</span>
+          </a>
+          <a href="/board" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                />
+                <path
+                  d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                />
+              </svg>
+            </span>
+            <span class="nav-text">게시판 관리</span>
+          </a>
+          <a href="/employees" class="nav-item active">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            <span class="nav-text">임직원 관리</span>
+          </a>
+          <a href="/popups" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            </span>
+            <span class="nav-text">팝업 관리</span>
+          </a>
+          <a href="/analytics" class="nav-item">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+            </span>
+            <span class="nav-text">방문통계</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <a href="https://bizcoaching.co.kr" class="nav-item" target="_blank">
+            <span class="nav-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+            </span>
+            <span class="nav-text">사이트 보기</span>
+          </a>
+        </div>
+      </aside>
+
+      <!-- 메인 컨텐츠 -->
+      <main class="main-content">
+        <!-- 헤더 -->
+        <header class="dashboard-header">
+          <div class="header-left">
+            <button
+              class="mobile-menu-btn"
+              onclick="toggleSidebar()"
+              aria-label="메뉴 열기"
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+            <div>
+              <h2 class="page-title">임직원 관리</h2>
+              <p class="page-subtitle">
+                회사소개 페이지에 표시될 임직원 정보를 관리합니다
+              </p>
+            </div>
+          </div>
+          <div class="header-right">
+            <button class="btn btn-primary" onclick="openAddModal()">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              임직원 추가
+            </button>
+          </div>
+        </header>
+
+        <!-- 임직원 목록 -->
+        <section class="content-section">
+          <div class="section-header">
+            <h3>임직원 목록</h3>
+            <span class="section-count" id="employeeCount">0명</span>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table employee-table">
+              <thead>
+                <tr>
+                  <th style="width: 60px">순서</th>
+                  <th style="width: 240px">임직원</th>
+                  <th>한줄 소개</th>
+                  <th style="width: 80px">상태</th>
+                  <th style="width: 120px">관리</th>
+                </tr>
+              </thead>
+              <tbody id="employeeTableBody">
+                <tr>
+                  <td
+                    colspan="5"
+                    style="
+                      text-align: center;
+                      padding: 36px 16px;
+                      color: var(--neutral-400);
+                    "
+                  >
+                    로딩 중...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- 로딩 오버레이 -->
+    <div class="loading-overlay hidden" id="loadingOverlay">
+      <div class="loading-spinner"></div>
+    </div>
+
+    <!-- 임직원 추가/수정 모달 -->
+    <div class="modal-overlay" id="employeeModal">
+      <div class="modal" style="max-width: 520px">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modalTitle">임직원 추가</h3>
+          <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <form id="employeeForm" onsubmit="saveEmployee(event)">
+          <div class="modal-body">
+            <!-- 프로필 이미지 -->
+            <div class="form-group">
+              <label
+                >프로필 이미지
+                <span
+                  style="
+                    font-weight: 400;
+                    color: var(--neutral-500);
+                    font-size: 12px;
+                  "
+                  >(자동 WebP 변환, 100KB 이하 압축)</span
+                ></label
+              >
+              <div class="profile-upload">
+                <div class="profile-preview-wrap">
+                  <img
+                    id="profilePreview"
+                    class="profile-upload-preview"
+                    src=""
+                    alt="프로필 미리보기"
+                    style="display: none"
+                  />
+                  <div
+                    id="profilePlaceholder"
+                    class="profile-upload-placeholder"
+                  >
+                    <svg
+                      width="36"
+                      height="36"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                    >
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </div>
+                </div>
+                <div class="profile-upload-actions">
+                  <input
+                    type="file"
+                    id="profileFile"
+                    accept="image/*"
+                    style="display: none"
+                    onchange="handleProfileUpload(event)"
+                  />
+                  <input type="hidden" id="profileUrl" value="" />
+                  <input type="hidden" id="imagePosition" value="center 20%" />
+                  <button
+                    type="button"
+                    class="btn btn-outline btn-sm"
+                    id="uploadBtn"
+                    onclick="document.getElementById('profileFile').click()"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    이미지 선택
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-outline btn-sm btn-danger-outline"
+                    id="removeBtn"
+                    onclick="removeProfileImage()"
+                    style="display: none"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                    삭제
+                  </button>
+                  <span
+                    id="uploadStatus"
+                    style="font-size: 12px; color: var(--neutral-500)"
+                  ></span>
+                </div>
+              </div>
+
+              <!-- 실제 카드 형태 미리보기 -->
+              <div class="image-position-container" id="imagePositionContainer">
+                <div class="image-position-label">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
+                  </svg>
+                  실제 화면과 동일한 카드 미리보기
+                </div>
+                <div
+                  style="
+                    background: #ffffff;
+                    border: 1px solid #f59e0b;
+                    border-radius: 8px;
+                    padding: 10px 12px;
+                    margin-bottom: 12px;
+                    font-size: 12px;
+                    color: #b45309;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                  "
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <span
+                    ><strong>PC에서 조정해주세요.</strong> 모바일과 PC 화면
+                    비율이 달라 위치값이 다르게 보일 수 있습니다.</span
+                  >
+                </div>
+
+                <!-- 실제 about.html 카드와 동일한 구조 -->
+                <div class="preview-card-wrapper">
+                  <div class="preview-employee-card">
+                    <div class="preview-image-area" id="imagePositionPreview">
+                      <img
+                        id="positionPreviewImg"
+                        src=""
+                        alt="미리보기"
+                        class="preview-avatar"
+                      />
+                      <div class="preview-drag-hint">
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <path
+                            d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3"
+                          />
+                        </svg>
+                        드래그로 조정
+                      </div>
+                    </div>
+                    <div class="preview-info-area">
+                      <div class="preview-name" id="previewName">이름</div>
+                      <div class="preview-position" id="previewPosition">
+                        직책
+                      </div>
+                      <div class="preview-intro" id="previewIntro">
+                        한줄 소개가 여기에 표시됩니다.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 확대/축소 슬라이더 -->
+                <div class="zoom-control">
+                  <label>
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    확대
+                  </label>
+                  <input
+                    type="range"
+                    id="zoomSlider"
+                    min="100"
+                    max="200"
+                    value="100"
+                    class="zoom-slider"
+                  />
+                  <span id="zoomValue">100%</span>
+                </div>
+                <div class="image-position-value" id="positionValue">
+                  위치: 50% 20% | 확대: 100%
+                </div>
+              </div>
+            </div>
+
+            <!-- 이름, 직책 -->
+            <div class="form-row">
+              <div class="form-group">
+                <label for="employeeName"
+                  >이름 <span class="required">*</span></label
+                >
+                <input
+                  type="text"
+                  id="employeeName"
+                  class="form-input"
+                  placeholder="홍길동"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label for="employeePosition"
+                  >직책 <span class="required">*</span></label
+                >
+                <input
+                  type="text"
+                  id="employeePosition"
+                  class="form-input"
+                  placeholder="이사"
+                  required
+                />
+              </div>
+            </div>
+
+            <!-- 한줄 소개 -->
+            <div class="form-group">
+              <label for="employeeIntro">한줄 소개</label>
+              <input
+                type="text"
+                id="employeeIntro"
+                class="form-input"
+                placeholder="10년 경력의 정책자금 전문가"
+              />
+            </div>
+
+            <!-- 전문분야 뱃지 (다중 선택) -->
+            <div class="form-group">
+              <label
+                >전문분야 뱃지
+                <span
+                  style="
+                    font-weight: 400;
+                    color: var(--neutral-500);
+                    font-size: 12px;
+                  "
+                  >(전체 최대 4개 선택)</span
+                ></label
+              >
+
+              <!-- 자금유형 -->
+              <div class="badge-category">
+                <span class="badge-category-label">자금유형</span>
+                <div class="checkbox-group" id="fundTypeGroup">
+                  <label
+                    class="checkbox-item fund"
+                    onclick="toggleBadge(this, 'fundType')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="fundType"
+                      value="정책자금"
+                    />정책자금
+                  </label>
+                  <label
+                    class="checkbox-item fund"
+                    onclick="toggleBadge(this, 'fundType')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="fundType"
+                      value="창업자금"
+                    />창업자금
+                  </label>
+                  <label
+                    class="checkbox-item fund"
+                    onclick="toggleBadge(this, 'fundType')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="fundType"
+                      value="R&D자금"
+                    />R&D자금
+                  </label>
+                  <label
+                    class="checkbox-item fund"
+                    onclick="toggleBadge(this, 'fundType')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="fundType"
+                      value="시설자금"
+                    />시설자금
+                  </label>
+                  <label
+                    class="checkbox-item fund"
+                    onclick="toggleBadge(this, 'fundType')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="fundType"
+                      value="운전자금"
+                    />운전자금
+                  </label>
+                  <label
+                    class="checkbox-item fund"
+                    onclick="toggleBadge(this, 'fundType')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="fundType"
+                      value="수출자금"
+                    />수출자금
+                  </label>
+                </div>
+              </div>
+
+              <!-- 업무영역 -->
+              <div class="badge-category">
+                <span class="badge-category-label">업무영역</span>
+                <div class="checkbox-group" id="workAreaGroup">
+                  <label
+                    class="checkbox-item work"
+                    onclick="toggleBadge(this, 'workArea')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="workArea"
+                      value="사업계획서"
+                    />사업계획서
+                  </label>
+                  <label
+                    class="checkbox-item work"
+                    onclick="toggleBadge(this, 'workArea')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="workArea"
+                      value="기업진단"
+                    />기업진단
+                  </label>
+                  <label
+                    class="checkbox-item work"
+                    onclick="toggleBadge(this, 'workArea')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="workArea"
+                      value="인증컨설팅"
+                    />인증컨설팅
+                  </label>
+                  <label
+                    class="checkbox-item work"
+                    onclick="toggleBadge(this, 'workArea')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="workArea"
+                      value="세무회계"
+                    />세무회계
+                  </label>
+                  <label
+                    class="checkbox-item work"
+                    onclick="toggleBadge(this, 'workArea')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="workArea"
+                      value="법률자문"
+                    />법률자문
+                  </label>
+                </div>
+              </div>
+
+              <!-- 산업분야 -->
+              <div class="badge-category">
+                <span class="badge-category-label">산업분야</span>
+                <div class="checkbox-group" id="industryGroup">
+                  <label
+                    class="checkbox-item industry-item"
+                    onclick="toggleBadge(this, 'industry')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="industry"
+                      value="제조업"
+                    />제조업
+                  </label>
+                  <label
+                    class="checkbox-item industry-item"
+                    onclick="toggleBadge(this, 'industry')"
+                  >
+                    <input type="checkbox" name="industry" value="IT/SW" />IT/SW
+                  </label>
+                  <label
+                    class="checkbox-item industry-item"
+                    onclick="toggleBadge(this, 'industry')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="industry"
+                      value="바이오"
+                    />바이오
+                  </label>
+                  <label
+                    class="checkbox-item industry-item"
+                    onclick="toggleBadge(this, 'industry')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="industry"
+                      value="친환경"
+                    />친환경
+                  </label>
+                  <label
+                    class="checkbox-item industry-item"
+                    onclick="toggleBadge(this, 'industry')"
+                  >
+                    <input
+                      type="checkbox"
+                      name="industry"
+                      value="서비스업"
+                    />서비스업
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- 순서, 공개여부 -->
+            <div class="form-row">
+              <div class="form-group">
+                <label for="employeeOrder">표시 순서</label>
+                <input
+                  type="number"
+                  id="employeeOrder"
+                  class="form-input"
+                  value="1"
+                  min="1"
+                />
+              </div>
+              <div class="form-group">
+                <label for="employeeActive">공개 여부</label>
+                <div style="display: flex; align-items: center; height: 44px">
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="employeeActive" checked />
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span
+                    style="
+                      margin-left: 8px;
+                      color: var(--neutral-600);
+                      font-size: 14px;
+                    "
+                    >홈페이지에 표시</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-outline"
+              onclick="closeModal()"
+            >
+              취소
+            </button>
+            <button type="submit" class="btn btn-primary" id="submitBtn">
+              저장
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 하단 메뉴바 (모바일) -->
+    <nav class="bottom-nav">
+      <ul class="bottom-nav-list">
+        <li class="bottom-nav-item">
+          <a href="/" class="bottom-nav-link">
+            <span class="bottom-nav-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>
+            </span>
+            <span class="bottom-nav-text">대시보드</span>
+          </a>
+        </li>
+        <li class="bottom-nav-item">
+          <a href="/leads" class="bottom-nav-link">
+            <span class="bottom-nav-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                <path
+                  d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
+                />
+              </svg>
+            </span>
+            <span class="bottom-nav-text">접수</span>
+          </a>
+        </li>
+        <li class="bottom-nav-item">
+          <a href="/employees" class="bottom-nav-link active">
+            <span class="bottom-nav-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            <span class="bottom-nav-text">임직원</span>
+          </a>
+        </li>
+        <li class="bottom-nav-item">
+          <a href="/analytics" class="bottom-nav-link">
+            <span class="bottom-nav-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+            </span>
+            <span class="bottom-nav-text">통계</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- 삭제 확인 모달 -->
+    <div class="modal-overlay" id="deleteModal">
+      <div class="modal" style="max-width: 400px">
+        <div class="modal-header">
+          <h3 class="modal-title">임직원 삭제</h3>
+          <button class="modal-close" onclick="closeDeleteModal()">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <p style="color: var(--neutral-600)">
+            <strong id="deleteEmployeeName"></strong>님의 정보를
+            삭제하시겠습니까?<br />
+            삭제된 정보는 복구할 수 없습니다.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-outline"
+            onclick="closeDeleteModal()"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            class="btn btn-danger"
+            onclick="confirmDelete()"
+          >
+            삭제
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // API 베이스 URL
+      const API_BASE = WORKER_URL; // admin-auth.js에서 정의
+
+      // 상태
+      let employees = [];
+      let editingId = null;
+      let deleteTargetId = null;
+
+      // 뱃지 체크박스 토글 (전체 최대 4개 제한)
+      function toggleBadge(label, groupName) {
+        const checkbox = label.querySelector('input[type="checkbox"]');
+        // 전체 선택된 뱃지 개수 확인
+        const totalSelected = document.querySelectorAll(
+          'input[name="fundType"]:checked, input[name="workArea"]:checked, input[name="industry"]:checked',
+        ).length;
+
+        // 체크하려는 경우 전체 최대 4개 제한
+        if (!checkbox.checked && totalSelected >= 4) {
+          alert("전문분야 뱃지는 전체 최대 4개까지 선택할 수 있습니다.");
+          return;
+        }
+
+        checkbox.checked = !checkbox.checked;
+        label.classList.toggle("checked", checkbox.checked);
+      }
+
+      // 선택된 뱃지 값들을 쉼표로 구분된 문자열로 반환
+      function getSelectedBadges(groupName) {
+        const checkboxes = document.querySelectorAll(
+          `input[name="${groupName}"]:checked`,
+        );
+        return Array.from(checkboxes)
+          .map((cb) => cb.value)
+          .join(",");
+      }
+
+      // 쉼표로 구분된 문자열을 체크박스에 설정
+      function setSelectedBadges(groupName, values) {
+        // 먼저 모든 체크박스 해제
+        document
+          .querySelectorAll(`input[name="${groupName}"]`)
+          .forEach((cb) => {
+            cb.checked = false;
+            cb.closest(".checkbox-item").classList.remove("checked");
+          });
+
+        if (!values) return;
+
+        // 쉼표로 구분된 값들을 배열로 변환
+        const valueArray = values
+          .split(",")
+          .map((v) => v.trim())
+          .filter((v) => v);
+
+        // 해당하는 체크박스 선택
+        valueArray.forEach((value) => {
+          const checkbox = document.querySelector(
+            `input[name="${groupName}"][value="${value}"]`,
+          );
+          if (checkbox) {
+            checkbox.checked = true;
+            checkbox.closest(".checkbox-item").classList.add("checked");
+          }
+        });
+      }
+
+      // 모든 뱃지 체크박스 초기화
+      function resetBadges() {
+        ["fundType", "workArea", "industry"].forEach((groupName) => {
+          document
+            .querySelectorAll(`input[name="${groupName}"]`)
+            .forEach((cb) => {
+              cb.checked = false;
+              cb.closest(".checkbox-item").classList.remove("checked");
+            });
+        });
+      }
+
+      // 페이지 로드 시 데이터 불러오기
+      document.addEventListener("DOMContentLoaded", loadEmployees);
+
+      // 임직원 목록 로드
+      async function loadEmployees() {
+        try {
+          const response = await fetch(`${API_BASE}/employees/all`);
+          const data = await response.json();
+          employees = data.employees || [];
+          renderEmployeeTable();
+        } catch (error) {
+          console.error("임직원 로드 실패:", error);
+          document.getElementById("employeeTableBody").innerHTML = `
+          <tr>
+            <td colspan="5" style="text-align: center; padding: 36px 16px; color: var(--error);">
+              데이터를 불러오는데 실패했습니다.
+            </td>
+          </tr>
+        `;
+        }
+      }
+
+      // 테이블 렌더링
+      function renderEmployeeTable() {
+        const tbody = document.getElementById("employeeTableBody");
+        document.getElementById("employeeCount").textContent =
+          `${employees.length}명`;
+
+        if (employees.length === 0) {
+          tbody.innerHTML = `
+          <tr>
+            <td colspan="5" style="text-align: center; padding: 36px 16px; color: var(--neutral-400);">
+              등록된 임직원이 없습니다. 우측 상단의 [임직원 추가] 버튼을 클릭하여 등록해주세요.
+            </td>
+          </tr>
+        `;
+          return;
+        }
+
+        tbody.innerHTML = employees
+          .map(
+            (emp) => `
+        <tr>
+          <td><span class="order-badge">${emp.순서 || "-"}</span></td>
+          <td>
+            <div class="employee-name-cell">
+              ${
+                emp.프로필이미지URL
+                  ? `<img src="${emp.프로필이미지URL}" alt="${emp.이름}" class="profile-preview">`
+                  : `<div class="profile-placeholder">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                      <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                  </div>`
+              }
+              <div class="info">
+                <span class="name">${emp.이름}</span>
+                <span class="position">${emp.직책}</span>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="intro-text">${emp.소개 || "-"}</span>
+            ${
+              emp.자금유형 || emp.업무영역 || emp.산업분야
+                ? `
+              <div style="margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap;">
+                ${
+                  emp.자금유형
+                    ? emp.자금유형
+                        .split(",")
+                        .map(
+                          (v) =>
+                            `<span class="specialty-badge fund">${v.trim()}</span>`,
+                        )
+                        .join("")
+                    : ""
+                }
+                ${
+                  emp.업무영역
+                    ? emp.업무영역
+                        .split(",")
+                        .map(
+                          (v) =>
+                            `<span class="specialty-badge work">${v.trim()}</span>`,
+                        )
+                        .join("")
+                    : ""
+                }
+                ${
+                  emp.산업분야
+                    ? emp.산업분야
+                        .split(",")
+                        .map(
+                          (v) =>
+                            `<span class="specialty-badge industry">${v.trim()}</span>`,
+                        )
+                        .join("")
+                    : ""
+                }
+              </div>
+            `
+                : ""
+            }
+          </td>
+          <td>
+            <span class="${emp.공개여부 ? "badge-active" : "badge-inactive"}">
+              ${emp.공개여부 ? "공개" : "비공개"}
+            </span>
+          </td>
+          <td>
+            <div class="action-buttons">
+              <button class="btn-icon" onclick="editEmployee('${emp.id}')" title="수정">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
+              <button class="btn-icon btn-icon-danger" onclick="openDeleteModal('${emp.id}')" title="삭제">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `,
+          )
+          .join("");
+      }
+
+      // 추가 모달 열기
+      function openAddModal() {
+        editingId = null;
+        document.getElementById("modalTitle").textContent = "임직원 추가";
+        document.getElementById("submitBtn").textContent = "저장";
+        document.getElementById("employeeForm").reset();
+        document.getElementById("profilePreview").style.display = "none";
+        document.getElementById("profilePlaceholder").style.display = "flex";
+        document.getElementById("profileUrl").value = "";
+        document.getElementById("removeBtn").style.display = "none";
+        document.getElementById("uploadStatus").textContent = "";
+        document.getElementById("employeeActive").checked = true;
+        document.getElementById("employeeOrder").value = employees.length + 1;
+        // 뱃지 체크박스 초기화
+        resetBadges();
+        // 이미지 위치 초기화
+        document.getElementById("imagePosition").value = "center 20%";
+        document
+          .getElementById("imagePositionContainer")
+          .classList.remove("active");
+        document.getElementById("employeeModal").classList.add("open");
+      }
+
+      // 수정 모달 열기
+      function editEmployee(id) {
+        const emp = employees.find((e) => e.id === id);
+        if (!emp) return;
+
+        editingId = id;
+        document.getElementById("modalTitle").textContent = "임직원 수정";
+        document.getElementById("submitBtn").textContent = "수정";
+        document.getElementById("employeeName").value = emp.이름 || "";
+        document.getElementById("employeePosition").value = emp.직책 || "";
+        document.getElementById("employeeIntro").value = emp.소개 || "";
+        document.getElementById("employeeOrder").value = emp.순서 || 1;
+        document.getElementById("employeeActive").checked = emp.공개여부;
+        document.getElementById("profileUrl").value = emp.프로필이미지URL || "";
+        document.getElementById("uploadStatus").textContent = "";
+        // 뱃지 체크박스 값 로드
+        setSelectedBadges("fundType", emp.자금유형 || "");
+        setSelectedBadges("workArea", emp.업무영역 || "");
+        setSelectedBadges("industry", emp.산업분야 || "");
+
+        // 이미지 위치 로드
+        const imgPosition = emp.이미지위치 || "center 20%";
+        document.getElementById("imagePosition").value = imgPosition;
+
+        if (emp.프로필이미지URL) {
+          document.getElementById("profilePreview").src = emp.프로필이미지URL;
+          document.getElementById("profilePreview").style.display = "block";
+          document.getElementById("profilePlaceholder").style.display = "none";
+          document.getElementById("removeBtn").style.display = "inline-flex";
+          // 이미지 위치 조정 UI 표시
+          showImagePositionUI(emp.프로필이미지URL, imgPosition);
+        } else {
+          document.getElementById("profilePreview").style.display = "none";
+          document.getElementById("profilePlaceholder").style.display = "flex";
+          document.getElementById("removeBtn").style.display = "none";
+          document
+            .getElementById("imagePositionContainer")
+            .classList.remove("active");
+        }
+
+        document.getElementById("employeeModal").classList.add("open");
+      }
+
+      // 모달 닫기
+      function closeModal() {
+        document.getElementById("employeeModal").classList.remove("open");
+        document.getElementById("profileFile").value = "";
+        editingId = null;
+      }
+
+      // 프로필 이미지 삭제
+      function removeProfileImage() {
+        document.getElementById("profileUrl").value = "";
+        document.getElementById("profilePreview").style.display = "none";
+        document.getElementById("profilePlaceholder").style.display = "flex";
+        document.getElementById("removeBtn").style.display = "none";
+        document.getElementById("uploadStatus").textContent = "";
+        document.getElementById("profileFile").value = "";
+        // 이미지 위치 초기화 및 숨김
+        document.getElementById("imagePosition").value = "center 20%";
+        document
+          .getElementById("imagePositionContainer")
+          .classList.remove("active");
+      }
+
+      // 이미지를 WebP로 변환하고 100KB 이하로 압축
+      async function compressImageToWebP(file, maxSizeKB = 100) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement("canvas");
+              let width = img.width;
+              let height = img.height;
+
+              // 최대 크기 제한 (800x800)
+              const maxDimension = 800;
+              if (width > maxDimension || height > maxDimension) {
+                if (width > height) {
+                  height = Math.round((height / width) * maxDimension);
+                  width = maxDimension;
+                } else {
+                  width = Math.round((width / height) * maxDimension);
+                  height = maxDimension;
+                }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext("2d");
+              ctx.drawImage(img, 0, 0, width, height);
+
+              // 품질을 조절하며 100KB 이하가 될 때까지 압축
+              let quality = 0.9;
+              const tryCompress = () => {
+                canvas.toBlob(
+                  (blob) => {
+                    if (!blob) {
+                      reject(new Error("이미지 변환 실패"));
+                      return;
+                    }
+
+                    const sizeKB = blob.size / 1024;
+                    console.log(
+                      `압축 시도: quality=${quality.toFixed(2)}, size=${sizeKB.toFixed(1)}KB`,
+                    );
+
+                    if (sizeKB <= maxSizeKB || quality <= 0.1) {
+                      // 파일명 생성 (원본 이름에서 확장자 제거 후 .webp 추가)
+                      const baseName = file.name.replace(/\.[^/.]+$/, "");
+                      const newFile = new File([blob], `${baseName}.webp`, {
+                        type: "image/webp",
+                      });
+                      resolve({ file: newFile, sizeKB: sizeKB.toFixed(1) });
+                    } else {
+                      quality -= 0.1;
+                      tryCompress();
+                    }
+                  },
+                  "image/webp",
+                  quality,
+                );
+              };
+
+              tryCompress();
+            };
+            img.onerror = () => reject(new Error("이미지 로드 실패"));
+            img.src = e.target.result;
+          };
+          reader.onerror = () => reject(new Error("파일 읽기 실패"));
+          reader.readAsDataURL(file);
+        });
+      }
+
+      // 프로필 이미지 파일 업로드
+      async function handleProfileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const statusEl = document.getElementById("uploadStatus");
+        statusEl.textContent = "압축 중...";
+        statusEl.className = "upload-progress";
+
+        try {
+          // WebP 변환 및 압축
+          const { file: compressedFile, sizeKB } = await compressImageToWebP(
+            file,
+            100,
+          );
+          console.log(`압축 완료: ${compressedFile.name}, ${sizeKB}KB`);
+
+          statusEl.textContent = "업로드 중...";
+          showLoading();
+
+          const formData = new FormData();
+          formData.append("file", compressedFile);
+
+          const response = await fetch(`${API_BASE}/upload`, {
+            method: "POST",
+            body: formData,
+          });
+
+          const result = await response.json();
+
+          if (result.success && result.url) {
+            document.getElementById("profileUrl").value = result.url;
+            document.getElementById("profilePreview").src = result.url;
+            document.getElementById("profilePreview").style.display = "block";
+            document.getElementById("profilePlaceholder").style.display =
+              "none";
+            document.getElementById("removeBtn").style.display = "inline-flex";
+            statusEl.textContent = `완료 (${sizeKB}KB)`;
+            statusEl.style.color = "var(--success)";
+            // 이미지 위치 조정 UI 표시
+            showImagePositionUI(result.url, "center 20%");
+          } else {
+            statusEl.textContent = "";
+            alert(
+              "이미지 업로드에 실패했습니다: " +
+                (result.error || "알 수 없는 오류"),
+            );
+          }
+        } catch (error) {
+          console.error("업로드 오류:", error);
+          statusEl.textContent = "";
+          alert("이미지 처리 중 오류가 발생했습니다: " + error.message);
+        } finally {
+          hideLoading();
+        }
+      }
+
+      // 임직원 저장
+      async function saveEmployee(event) {
+        event.preventDefault();
+
+        const data = {
+          이름: document.getElementById("employeeName").value.trim(),
+          직책: document.getElementById("employeePosition").value.trim(),
+          소개: document.getElementById("employeeIntro").value.trim(),
+          순서: parseInt(document.getElementById("employeeOrder").value) || 1,
+          공개여부: document.getElementById("employeeActive").checked,
+          프로필이미지URL: document.getElementById("profileUrl").value.trim(),
+          이미지위치:
+            document.getElementById("imagePosition").value || "center 20%",
+          자금유형: getSelectedBadges("fundType"),
+          업무영역: getSelectedBadges("workArea"),
+          산업분야: getSelectedBadges("industry"),
+        };
+
+        if (!data.이름 || !data.직책) {
+          alert("이름과 직책은 필수 입력 항목입니다.");
+          return;
+        }
+
+        showLoading();
+
+        try {
+          const url = editingId
+            ? `${API_BASE}/employees/${editingId}`
+            : `${API_BASE}/employees`;
+          const method = editingId ? "PATCH" : "POST";
+
+          const response = await fetch(url, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            closeModal();
+            await loadEmployees();
+            alert(
+              editingId
+                ? "임직원 정보가 수정되었습니다."
+                : "임직원이 등록되었습니다.",
+            );
+          } else {
+            alert("저장 실패: " + (result.error || "알 수 없는 오류"));
+          }
+        } catch (error) {
+          console.error("저장 오류:", error);
+          alert("저장 중 오류가 발생했습니다.");
+        } finally {
+          hideLoading();
+        }
+      }
+
+      // 삭제 모달 열기
+      function openDeleteModal(id) {
+        const emp = employees.find((e) => e.id === id);
+        if (!emp) return;
+
+        deleteTargetId = id;
+        document.getElementById("deleteEmployeeName").textContent = emp.이름;
+        document.getElementById("deleteModal").classList.add("open");
+      }
+
+      // 삭제 모달 닫기
+      function closeDeleteModal() {
+        document.getElementById("deleteModal").classList.remove("open");
+        deleteTargetId = null;
+      }
+
+      // 삭제 확인
+      async function confirmDelete() {
+        if (!deleteTargetId) return;
+
+        showLoading();
+
+        try {
+          const response = await fetch(
+            `${API_BASE}/employees/${deleteTargetId}`,
+            {
+              method: "DELETE",
+            },
+          );
+
+          const result = await response.json();
+
+          if (result.success) {
+            closeDeleteModal();
+            await loadEmployees();
+            alert("임직원이 삭제되었습니다.");
+          } else {
+            alert("삭제 실패: " + (result.error || "알 수 없는 오류"));
+          }
+        } catch (error) {
+          console.error("삭제 오류:", error);
+          alert("삭제 중 오류가 발생했습니다.");
+        } finally {
+          hideLoading();
+        }
+      }
+
+      // 로딩 표시
+      function showLoading() {
+        document.getElementById("loadingOverlay").classList.remove("hidden");
+      }
+
+      function hideLoading() {
+        document.getElementById("loadingOverlay").classList.add("hidden");
+      }
+
+      // ========================================
+      // 이미지 위치 조정 (Zoom + X/Y Position)
+      // ========================================
+      let isDragging = false;
+      let startX = 0;
+      let startY = 0;
+      let positionX = 50; // 0-100 (%)
+      let positionY = 20; // 0-100 (%)
+      let zoomLevel = 100; // 100-200 (%)
+
+      // 이미지 위치 UI 표시
+      function showImagePositionUI(imageUrl, position) {
+        const container = document.getElementById("imagePositionContainer");
+        const previewImg = document.getElementById("positionPreviewImg");
+        const zoomSlider = document.getElementById("zoomSlider");
+
+        previewImg.src = imageUrl;
+        container.classList.add("active");
+
+        // 위치 파싱 (예: "50% 20% 120" → x=50, y=20, zoom=120)
+        // 기존 형식 호환: "center 20%" → x=50, y=20, zoom=100
+        parsePosition(position);
+
+        zoomSlider.value = zoomLevel;
+        document.getElementById("zoomValue").textContent = `${zoomLevel}%`;
+
+        updateImagePosition();
+        updatePreviewCard(); // 카드 정보 업데이트
+        initDragEvents();
+        initZoomEvents();
+        initPreviewCardSync(); // 입력 필드와 미리보기 동기화
+      }
+
+      // 미리보기 카드 정보 업데이트
+      function updatePreviewCard() {
+        const name = document.getElementById("employeeName").value || "이름";
+        const position =
+          document.getElementById("employeePosition").value || "직책";
+        const intro =
+          document.getElementById("employeeIntro").value ||
+          "한줄 소개가 여기에 표시됩니다.";
+
+        document.getElementById("previewName").textContent = name;
+        document.getElementById("previewPosition").textContent = position;
+        document.getElementById("previewIntro").textContent = intro;
+      }
+
+      // 입력 필드와 미리보기 카드 동기화
+      function initPreviewCardSync() {
+        const nameInput = document.getElementById("employeeName");
+        const positionInput = document.getElementById("employeePosition");
+        const introInput = document.getElementById("employeeIntro");
+
+        nameInput.oninput = updatePreviewCard;
+        positionInput.oninput = updatePreviewCard;
+        introInput.oninput = updatePreviewCard;
+      }
+
+      // 위치 문자열 파싱
+      function parsePosition(position) {
+        if (!position) {
+          positionX = 50;
+          positionY = 20;
+          zoomLevel = 100;
+          return;
+        }
+
+        // 새 형식: "50% 20% 120" (음수 지원: "-10% 30% 150")
+        const newMatch = position.match(/(-?\d+)%\s+(-?\d+)%\s+(\d+)/);
+        if (newMatch) {
+          positionX = parseInt(newMatch[1]);
+          positionY = parseInt(newMatch[2]);
+          zoomLevel = parseInt(newMatch[3]);
+          return;
+        }
+
+        // 기존 형식: "center 20%"
+        const oldMatch = position.match(/center\s*(\d+)%/);
+        if (oldMatch) {
+          positionX = 50;
+          positionY = parseInt(oldMatch[1]);
+          zoomLevel = 100;
+          return;
+        }
+
+        // 기본값
+        positionX = 50;
+        positionY = 20;
+        zoomLevel = 100;
+      }
+
+      // 이미지 위치 업데이트
+      function updateImagePosition() {
+        const previewImg = document.getElementById("positionPreviewImg");
+        const positionValue = document.getElementById("positionValue");
+        const hiddenInput = document.getElementById("imagePosition");
+
+        // transform: scale + object-position 적용
+        const scale = zoomLevel / 100;
+        previewImg.style.transform = `scale(${scale})`;
+        previewImg.style.objectPosition = `${positionX}% ${positionY}%`;
+
+        // 저장 형식: "X% Y% ZOOM"
+        const positionStr = `${positionX}% ${positionY}% ${zoomLevel}`;
+        positionValue.textContent = `X: ${positionX}% | Y: ${positionY}% | 확대: ${zoomLevel}%`;
+        hiddenInput.value = positionStr;
+      }
+
+      // 확대/축소 이벤트 초기화
+      function initZoomEvents() {
+        const zoomSlider = document.getElementById("zoomSlider");
+        zoomSlider.oninput = (e) => {
+          zoomLevel = parseInt(e.target.value);
+          document.getElementById("zoomValue").textContent = `${zoomLevel}%`;
+          updateImagePosition();
+        };
+      }
+
+      // 드래그 이벤트 초기화 (X, Y 모두 지원)
+      function initDragEvents() {
+        const preview = document.getElementById("imagePositionPreview");
+
+        // 기존 이벤트 제거
+        preview.onmousedown = null;
+        preview.ontouchstart = null;
+
+        // 마우스 이벤트
+        preview.onmousedown = (e) => {
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          preview.style.cursor = "grabbing";
+          e.preventDefault();
+        };
+
+        document.onmousemove = (e) => {
+          if (!isDragging) return;
+          const deltaX = startX - e.clientX;
+          const deltaY = startY - e.clientY;
+          startX = e.clientX;
+          startY = e.clientY;
+
+          // 드래그 방향과 위치 조정 (확대 시 더 넓은 범위 허용)
+          const extraRange = zoomLevel - 100; // 확대 비율만큼 추가 범위
+          const minPos = -extraRange;
+          const maxPos = 100 + extraRange;
+          positionX = Math.max(
+            minPos,
+            Math.min(maxPos, positionX + deltaX * 0.5),
+          );
+          positionY = Math.max(
+            minPos,
+            Math.min(maxPos, positionY + deltaY * 0.5),
+          );
+          updateImagePosition();
+        };
+
+        document.onmouseup = () => {
+          if (isDragging) {
+            isDragging = false;
+            preview.style.cursor = "grab";
+          }
+        };
+
+        // 터치 이벤트 (모바일)
+        preview.ontouchstart = (e) => {
+          isDragging = true;
+          startX = e.touches[0].clientX;
+          startY = e.touches[0].clientY;
+          e.preventDefault();
+        };
+
+        document.ontouchmove = (e) => {
+          if (!isDragging) return;
+          const deltaX = startX - e.touches[0].clientX;
+          const deltaY = startY - e.touches[0].clientY;
+          startX = e.touches[0].clientX;
+          startY = e.touches[0].clientY;
+
+          // 드래그 방향과 위치 조정 (확대 시 더 넓은 범위 허용)
+          const extraRange = zoomLevel - 100;
+          const minPos = -extraRange;
+          const maxPos = 100 + extraRange;
+          positionX = Math.max(
+            minPos,
+            Math.min(maxPos, positionX + deltaX * 0.5),
+          );
+          positionY = Math.max(
+            minPos,
+            Math.min(maxPos, positionY + deltaY * 0.5),
+          );
+          updateImagePosition();
+        };
+
+        document.ontouchend = () => {
+          isDragging = false;
+        };
+      }
+
+      // 사이드바 토글
+      function toggleSidebar() {
+        document.querySelector(".sidebar").classList.toggle("open");
+        document.querySelector(".sidebar-overlay").classList.toggle("open");
+      }
+    </script>
+  </body>
+</html>
