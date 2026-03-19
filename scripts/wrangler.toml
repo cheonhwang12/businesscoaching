@@ -7,9 +7,9 @@ AIRTABLE_BASE_ID = "appAZ9azWpz2kOIdq"
 AIRTABLE_TABLE_ID = "tblmgWictjfTvZCou"
 TELEGRAM_ADMIN_CHAT_ID = "-1003708520358"
 ALLOWED_ORIGINS = "https://businesscoaching.vercel.app,https://bizcoaching.co.kr,https://www.bizcoaching.co.kr,https://admin.bizcoaching.co.kr"
-AIRTABLE_BOARD_TABLE_ID = ""
-AIRTABLE_EMPLOYEES_TABLE_ID = ""
-AIRTABLE_POPUPS_TABLE_ID = ""
+AIRTABLE_BOARD_TABLE_ID = "tbl4jKUxJNWpgJ1FP"
+AIRTABLE_EMPLOYEES_TABLE_ID = "tblwiN7hlhJQhomPQ"
+AIRTABLE_POPUPS_TABLE_ID = "tblkD9YjGZlny9dvy"
 R2_PUBLIC_URL = "https://pub-bc9039719ad646bc8c6ab4169bb938b9.r2.dev"
 
 [[r2_buckets]]

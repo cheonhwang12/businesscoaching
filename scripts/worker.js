@@ -195,23 +195,23 @@ async function handleSubmit(request, env) {
     try {
       const rawFields = data.airtableFields || {};
       const fieldMap = {
-        기업명: "Company",
-        사업자번호: "BizNo",
-        대표자명: "Name",
-        연락처: "Phone",
-        이메일: "Email",
-        지역: "Region",
-        업종: "Industry",
-        설립연도: "Founded",
-        직전년도매출: "Revenue",
+        기업명: "company",
+        사업자번호: "bizno",
+        대표자명: "name",
+        연락처: "phone",
+        이메일: "email",
+        지역: "region",
+        업종: "industry",
+        설립연도: "founded",
+        직전년도매출: "revenue",
         통화가능시간: "CallTime",
-        필요자금규모: "Amount",
-        자금종류: "FundType",
-        문의사항: "Message",
-        접수일: "Date",
-        접수시간: "Time",
-        상태: "Status",
-        메모: "Memo",
+        필요자금규모: "amount",
+        자금종류: "fundType",
+        문의사항: "message",
+        접수일: "date",
+        접수시간: "time",
+        상태: "status",
+        메모: "memo",
       };
 
       // 영문 필드명 셋 (Airtable에 실제 존재하는 필드만 허용)
@@ -225,14 +225,14 @@ async function handleSubmit(request, env) {
         }
       }
 
-      if (fields["FundType"]) {
-        fields["FundType"] = Array.isArray(fields["FundType"])
-          ? fields["FundType"].join(", ")
-          : fields["FundType"];
+      if (fields["fundType"]) {
+        fields["fundType"] = Array.isArray(fields["fundType"])
+          ? fields["fundType"].join(", ")
+          : fields["fundType"];
       }
 
-      fields["Date"] = submitDate;
-      fields["Time"] = submitTime;
+      fields["date"] = submitDate;
+      fields["time"] = submitTime;
 
       const airtableResponse = await fetch(
         `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}`,
@@ -367,40 +367,40 @@ function buildTelegramMessage(fields, submitDate, submitTime) {
   msg += "👤 <b>고객정보</b>\n";
   msg +=
     "├ 기업명: <b>" +
-    escapeHtml(fields["기업명"] || fields["Company"]) +
+    escapeHtml(fields["기업명"] || fields["company"]) +
     "</b>\n";
   msg +=
     "├ 사업자번호: " +
-    escapeHtml(fields["사업자번호"] || fields["BizNo"]) +
+    escapeHtml(fields["사업자번호"] || fields["bizno"]) +
     "\n";
   msg +=
     "├ 대표자명: <b>" +
-    escapeHtml(fields["대표자명"] || fields["Name"]) +
+    escapeHtml(fields["대표자명"] || fields["name"]) +
     "</b>\n";
   msg +=
     "├ 연락처: <code>" +
-    escapeHtml(fields["연락처"] || fields["Phone"]) +
+    escapeHtml(fields["연락처"] || fields["phone"]) +
     "</code>\n";
-  msg += "├ 이메일: " + escapeHtml(fields["이메일"] || fields["Email"]) + "\n";
-  msg += "├ 지역: " + escapeHtml(fields["지역"] || fields["Region"]) + "\n";
+  msg += "├ 이메일: " + escapeHtml(fields["이메일"] || fields["email"]) + "\n";
+  msg += "├ 지역: " + escapeHtml(fields["지역"] || fields["region"]) + "\n";
   msg +=
     "└ 통화가능: <b>" +
     escapeHtml(fields["통화가능시간"] || fields["CallTime"]) +
     "</b>\n\n";
 
   msg += "💰 <b>자금정보</b>\n";
-  const fundTypes = fields["자금종류"] || fields["FundType"];
+  const fundTypes = fields["자금종류"] || fields["fundType"];
   if (fundTypes) msg += "├ 자금종류: " + escapeHtml(fundTypes) + "\n";
-  const amount = fields["필요자금규모"] || fields["Amount"];
-  const industry = fields["업종"] || fields["Industry"];
-  const founded = fields["설립연도"] || fields["Founded"];
-  const revenue = fields["직전년도매출"] || fields["Revenue"];
+  const amount = fields["필요자금규모"] || fields["amount"];
+  const industry = fields["업종"] || fields["industry"];
+  const founded = fields["설립연도"] || fields["founded"];
+  const revenue = fields["직전년도매출"] || fields["revenue"];
   if (amount) msg += "├ 필요규모: " + escapeHtml(amount) + "\n";
   if (industry) msg += "├ 업종: " + escapeHtml(industry) + "\n";
   if (founded) msg += "├ 설립연도: " + escapeHtml(founded) + "\n";
   if (revenue) msg += "└ 매출: " + escapeHtml(revenue) + "\n";
 
-  const message = fields["문의사항"] || fields["Message"];
+  const message = fields["문의사항"] || fields["message"];
   if (message && message !== "-") {
     msg += "\n💬 <b>문의</b>\n" + escapeHtml(message) + "\n";
   }
@@ -421,7 +421,7 @@ async function handleLeadsAPI(request, env, path) {
   // GET /leads
   if (method === "GET" && path === "/leads") {
     try {
-      const sortField = encodeURIComponent("Date");
+      const sortField = encodeURIComponent("date");
       const airtableUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}?sort[0][field]=${sortField}&sort[0][direction]=desc`;
       const airtableResponse = await fetch(airtableUrl, {
         headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
@@ -442,23 +442,23 @@ async function handleLeadsAPI(request, env, path) {
       const leads = result.records.map((record) => ({
         id: record.id,
         createdTime: record.createdTime,
-        Company: record.fields["Company"],
-        BizNo: record.fields["BizNo"],
-        Name: record.fields["Name"],
-        Phone: record.fields["Phone"],
-        Email: record.fields["Email"],
-        Region: record.fields["Region"],
-        Industry: record.fields["Industry"],
-        Founded: record.fields["Founded"],
-        Revenue: record.fields["Revenue"],
+        Company: record.fields["company"],
+        BizNo: record.fields["bizno"],
+        Name: record.fields["name"],
+        Phone: record.fields["phone"],
+        Email: record.fields["email"],
+        Region: record.fields["region"],
+        Industry: record.fields["industry"],
+        Founded: record.fields["founded"],
+        Revenue: record.fields["revenue"],
         CallTime: record.fields["CallTime"],
-        Amount: record.fields["Amount"],
-        FundType: record.fields["FundType"],
-        Message: record.fields["Message"],
-        Date: record.fields["Date"],
-        Time: record.fields["Time"],
-        Status: record.fields["Status"] || "신규",
-        Memo: record.fields["Memo"] || "",
+        Amount: record.fields["amount"],
+        FundType: record.fields["fundType"],
+        Message: record.fields["message"],
+        Date: record.fields["date"],
+        Time: record.fields["time"],
+        Status: record.fields["status"] || "신규",
+        Memo: record.fields["memo"] || "",
       }));
 
       return new Response(JSON.stringify({ success: true, leads }), {
@@ -481,10 +481,10 @@ async function handleLeadsAPI(request, env, path) {
     try {
       const data = await request.json();
       const fields = {};
-      if (data.Status !== undefined) fields["Status"] = data.Status;
-      else if (data.상태 !== undefined) fields["Status"] = data.상태;
-      if (data.Memo !== undefined) fields["Memo"] = data.Memo;
-      else if (data.메모 !== undefined) fields["Memo"] = data.메모;
+      if (data.Status !== undefined) fields["status"] = data.Status;
+      else if (data.상태 !== undefined) fields["status"] = data.상태;
+      if (data.Memo !== undefined) fields["memo"] = data.Memo;
+      else if (data.메모 !== undefined) fields["memo"] = data.메모;
 
       const airtableResponse = await fetch(
         `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}/${recordId}`,
@@ -1715,11 +1715,11 @@ async function collectAndSaveDailyAnalytics(env, overrideDate) {
     );
     const leadsData = await leadsRes.json();
     dailyLeads = (leadsData.records || []).map((r) => ({
-      company: r.fields["Company"] || "-",
-      name: r.fields["Name"] || "-",
-      phone: r.fields["Phone"] || "-",
-      time: r.fields["Time"] || "-",
-      status: r.fields["Status"] || "신규",
+      company: r.fields["company"] || "-",
+      name: r.fields["name"] || "-",
+      phone: r.fields["phone"] || "-",
+      time: r.fields["time"] || "-",
+      status: r.fields["status"] || "신규",
     }));
   } catch (e) {
     console.error("접수건 조회 실패:", e.message);
