@@ -15,3 +15,8 @@ R2_PUBLIC_URL = "https://pub-bc9039719ad646bc8c6ab4169bb938b9.r2.dev"
 [[r2_buckets]]
 binding = "R2_BUCKET"
 bucket_name = "business-coaching-r2"
+
+# KV 바인딩 (OTP 인증용)
+[[kv_namespaces]]
+binding = "OTP_KV"
+id = "abae094da9de48038a41cde93e1af1b5"

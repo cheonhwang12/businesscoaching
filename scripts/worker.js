@@ -1,396 +1,58 @@
+// ================================================
+// INFINITES Workers API
+// 기능: 문의접수 + 게시판 + 접수내역
+// 배포: Cloudflare Workers
+//
+// 환경변수 (wrangler secret):
+//   - AIRTABLE_TOKEN, AIRTABLE_BASE_ID, AIRTABLE_TABLE_ID
+//   - TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+//   - GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN
+//   - STAFF_EMAILS (쉼표 구분, 예: "a@b.com,c@d.com")
+//   - OTP_KV (KV namespace binding)
+// ================================================
+
 const CORS_HEADERS = {
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Access-Control-Max-Age": "86400",
 };
 
-function corsHeaders(request, env) {
-  const origin = request.headers.get("Origin") || "";
-  const allowed = (env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim());
-  const allow = allowed.includes(origin) ? origin : allowed[0] || "*";
-  return { ...CORS_HEADERS, "Access-Control-Allow-Origin": allow };
+const STATIC_SLUGS = [];
+
+// ================================================
+// 유틸리티
+// ================================================
+
+function escapeHtml(str) {
+  if (!str) return "-";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
-function json(data, status = 200, request, env) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      ...corsHeaders(request, env),
-    },
-  });
+function getKSTNow() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000);
 }
 
-// Shared auth helper
-function requireAuth(request) {
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return { error: "인증이 필요합니다", status: 401 };
-  }
-  try {
-    const token = authHeader.split(" ")[1];
-    const payload = JSON.parse(atob(token));
-    if (payload.exp < Date.now()) {
-      return { error: "토큰이 만료되었습니다", status: 401 };
-    }
-    return null;
-  } catch {
-    return { error: "유효하지 않은 토큰입니다", status: 401 };
-  }
+function formatDateKST(date) {
+  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().split("T")[0];
 }
 
-// Shared Airtable helper
-async function airtableFetch(env, tableId, options = {}) {
-  const { method = "GET", body, params = "", recordId = "" } = options;
-  const path = recordId ? `/${recordId}` : "";
-  const url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${tableId}${path}${params}`;
-  const opts = {
-    method,
-    headers: {
-      Authorization: `Bearer ${env.AIRTABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-  };
-  if (body) opts.body = JSON.stringify(body);
-  return fetch(url, opts);
+function formatTimeKST(date) {
+  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().split("T")[1].substring(0, 5);
 }
 
-// In-memory auth code store (short-lived, per-isolate)
-const authCodes = new Map();
+// ================================================
+// Gmail OAuth2 이메일 발송
+// ================================================
 
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const rawPath = url.pathname;
-    const path = rawPath.startsWith("/api")
-      ? rawPath.replace("/api", "")
-      : rawPath;
-
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders(request, env),
-      });
-    }
-
-    try {
-      if (path === "/consult" && request.method === "POST") {
-        return handleConsult(request, env, ctx);
-      }
-      if (path === "/admin-auth" && request.method === "POST") {
-        return handleAdminAuth(request, env);
-      }
-      if (path === "/admin-verify" && request.method === "POST") {
-        return handleAdminVerify(request, env);
-      }
-      if (path === "/leads" && request.method === "GET") {
-        return handleGetLeads(request, env);
-      }
-      if (path === "/leads" && request.method === "DELETE") {
-        return handleDeleteLead(request, env);
-      }
-      if (path === "/analytics" && request.method === "GET") {
-        return handleAnalytics(request, env);
-      }
-      // Upload
-      if (path === "/upload" && request.method === "POST") {
-        return handleUpload(request, env);
-      }
-      // Board
-      if (path === "/board" && request.method === "GET") {
-        return handleGetBoard(request, env);
-      }
-      if (path === "/board" && request.method === "POST") {
-        return handleCreateBoard(request, env);
-      }
-      if (path === "/board" && request.method === "PUT") {
-        return handleUpdateBoard(request, env);
-      }
-      if (path === "/board" && request.method === "DELETE") {
-        return handleDeleteBoard(request, env);
-      }
-      // Employees
-      if (path === "/employees" && request.method === "GET") {
-        return handleGetEmployees(request, env);
-      }
-      if (path === "/employees" && request.method === "POST") {
-        return handleCreateEmployee(request, env);
-      }
-      if (path === "/employees" && request.method === "PUT") {
-        return handleUpdateEmployee(request, env);
-      }
-      if (path === "/employees" && request.method === "DELETE") {
-        return handleDeleteEmployee(request, env);
-      }
-      // Popups
-      if (path === "/popups" && request.method === "GET") {
-        return handleGetPopups(request, env);
-      }
-      if (path === "/popups" && request.method === "POST") {
-        return handleCreatePopup(request, env);
-      }
-      if (path === "/popups" && request.method === "PUT") {
-        return handleUpdatePopup(request, env);
-      }
-      if (path === "/popups" && request.method === "DELETE") {
-        return handleDeletePopup(request, env);
-      }
-      if (path === "/health") {
-        return json(
-          { status: "ok", timestamp: new Date().toISOString() },
-          200,
-          request,
-          env,
-        );
-      }
-      return json({ error: "Not Found" }, 404, request, env);
-    } catch (err) {
-      return json({ error: err.message }, 500, request, env);
-    }
-  },
-};
-
-// POST /api/consult - 위자드폼 접수
-async function handleConsult(request, env, ctx) {
-  const body = await request.json();
-  const {
-    companyName,
-    bizNumber,
-    industry,
-    foundedYear,
-    fundAmount,
-    fundType,
-    ceoName,
-    phone,
-    email,
-    availableTime,
-    message,
-  } = body;
-
-  if (!companyName || !phone || !ceoName) {
-    return json(
-      { error: "필수 항목을 입력해주세요 (기업명, 대표자명, 연락처)" },
-      400,
-      request,
-      env,
-    );
-  }
-
-  const now = new Date().toISOString();
-
-  // Save to Airtable
-  const airtableRes = await fetch(
-    `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.AIRTABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        typecast: true,
-        records: [
-          {
-            fields: {
-              fld76EQt8pI5wZT2f: companyName,
-              fldDsXzCJ3Atp7Xuh: bizNumber || "",
-              fldIIQPwWwd89640a: industry || "",
-              fldHvefKqkWd9wTOj: foundedYear || "",
-              fldxUOfkeU8tLP9m4: fundAmount || "",
-              fldtSYYIXPTlSJcDT: fundType || "",
-              fldHwYTsWree2KGQe: ceoName,
-              fldz2CTRYIERdRTgh: phone,
-              fldi1pKqTFx1DwVQs: email || "",
-              fldZYFyw2g0JBmXns: availableTime || "",
-              fldKkUCKTNsUg7FCF: message || "",
-              fld9EGNbrLeCpefTx: now,
-            },
-          },
-        ],
-      }),
-    },
-  );
-
-  if (!airtableRes.ok) {
-    const err = await airtableRes.text();
-    console.error("Airtable error:", err);
-    return json({ error: "접수 중 오류가 발생했습니다" }, 500, request, env);
-  }
-
-  // 즉시 응답, 알림은 백그라운드
-  const emailData = {
-    companyName,
-    bizNumber,
-    industry,
-    foundedYear,
-    fundAmount,
-    fundType,
-    ceoName,
-    phone,
-    email,
-    availableTime,
-    message,
-    now,
-  };
-  const adminUrl = "https://admin.xn--js-j52if34d3ff1tbnyjj1r.kr/leads";
-  const telegramMsg = [
-    "📋 새 상담 접수",
-    `기업명: ${companyName}`,
-    `대표자: ${ceoName}`,
-    `연락처: ${phone}`,
-    `업종: ${industry || "-"}`,
-    `자금규모: ${fundAmount || "-"}`,
-    `자금종류: ${fundType || "-"}`,
-    `접수시각: ${now}`,
-    "",
-    `<a href="${adminUrl}">접수관리 바로가기</a>`,
-  ].join("\n");
-
-  // 백그라운드 처리 (응답 후 실행)
-  const bgTasks = Promise.all([
-    sendTelegram(
-      env.TELEGRAM_BOT_TOKEN,
-      env.TELEGRAM_ADMIN_CHAT_ID,
-      telegramMsg,
-    ),
-    sendEmails(env, emailData).catch((err) =>
-      console.error("Email error:", err.message || err),
-    ),
-  ]);
-
-  ctx.waitUntil(bgTasks);
-
-  return json(
-    { success: true, message: "상담 신청이 접수되었습니다" },
-    200,
-    request,
-    env,
-  );
-}
-
-// POST /api/admin-auth - 인증번호 요청
-async function handleAdminAuth(request, env) {
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  const expires = Date.now() + 5 * 60 * 1000; // 5분
-
-  authCodes.set(code, { expires });
-
-  // 오래된 코드 정리
-  for (const [k, v] of authCodes) {
-    if (v.expires < Date.now()) authCodes.delete(k);
-  }
-
-  const msg = `🔐 관리자 인증번호: ${code}\n5분 내에 입력해주세요.`;
-  await sendTelegram(env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_ADMIN_CHAT_ID, msg);
-
-  return json(
-    { success: true, message: "인증번호가 발송되었습니다" },
-    200,
-    request,
-    env,
-  );
-}
-
-// POST /api/admin-verify - 인증번호 검증
-async function handleAdminVerify(request, env) {
-  const { code } = await request.json();
-
-  if (!code) {
-    return json({ error: "인증번호를 입력해주세요" }, 400, request, env);
-  }
-
-  const entry = authCodes.get(code);
-  if (!entry || entry.expires < Date.now()) {
-    authCodes.delete(code);
-    return json(
-      { error: "유효하지 않거나 만료된 인증번호입니다" },
-      401,
-      request,
-      env,
-    );
-  }
-
-  authCodes.delete(code);
-
-  // Simple JWT-like token (base64 encoded, not cryptographically secure - for admin dashboard only)
-  const payload = {
-    role: "admin",
-    iat: Date.now(),
-    exp: Date.now() + 24 * 60 * 60 * 1000,
-  };
-  const token = btoa(JSON.stringify(payload));
-
-  return json({ success: true, token }, 200, request, env);
-}
-
-// GET /api/leads - 리드 조회
-async function handleGetLeads(request, env) {
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return json({ error: "인증이 필요합니다" }, 401, request, env);
-  }
-
-  try {
-    const token = authHeader.split(" ")[1];
-    const payload = JSON.parse(atob(token));
-    if (payload.exp < Date.now()) {
-      return json({ error: "토큰이 만료되었습니다" }, 401, request, env);
-    }
-  } catch {
-    return json({ error: "유효하지 않은 토큰입니다" }, 401, request, env);
-  }
-
-  const url = new URL(request.url);
-  const pageSize = 20;
-  const offset = url.searchParams.get("offset") || "";
-
-  let airtableUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}?pageSize=${pageSize}&sort[0][field]=CreatedAt&sort[0][direction]=desc`;
-  if (offset) airtableUrl += `&offset=${offset}`;
-
-  const res = await fetch(airtableUrl, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` },
-  });
-
-  if (!res.ok) {
-    return json({ error: "Airtable 조회 실패" }, 500, request, env);
-  }
-
-  const data = await res.json();
-  const leads = data.records.map((r) => ({ id: r.id, ...r.fields }));
-
-  return json({ leads, offset: data.offset || null }, 200, request, env);
-}
-
-// DELETE /api/leads - 리드 삭제
-async function handleDeleteLead(request, env) {
-  const authErr = requireAuth(request);
-  if (authErr)
-    return json({ error: authErr.error }, authErr.status, request, env);
-
-  const body = await request.json();
-  if (!body.id) return json({ error: "id가 필요합니다" }, 400, request, env);
-
-  const ids = Array.isArray(body.id) ? body.id : [body.id];
-  // Airtable은 한번에 최대 10개 삭제
-  for (let i = 0; i < ids.length; i += 10) {
-    const batch = ids.slice(i, i + 10);
-    const params = batch.map((id) => `records[]=${id}`).join("&");
-    const res = await fetch(
-      `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}?${params}`,
-      {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` },
-      },
-    );
-    if (!res.ok)
-      return json({ success: false, error: "삭제 실패" }, 500, request, env);
-  }
-  return json({ success: true }, 200, request, env);
-}
-
-// Gmail OAuth2 helper
 async function getGmailAccessToken(env) {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
+  const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -400,364 +62,1240 @@ async function getGmailAccessToken(env) {
       grant_type: "refresh_token",
     }),
   });
-  const data = await res.json();
-  if (!data.access_token) throw new Error("Gmail token refresh failed");
+  const data = await response.json();
+  if (!data.access_token)
+    throw new Error("Gmail token refresh failed: " + JSON.stringify(data));
   return data.access_token;
 }
 
+// UTF-8 문자열 → Latin1 바이트열 (btoa 호환)
+// UTF-8 문자열 → base64 (Workers 호환)
 function utf8ToBase64(str) {
   const encoder = new TextEncoder();
   const bytes = encoder.encode(str);
   let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
   return btoa(binary);
 }
 
-function base64url(str) {
-  return utf8ToBase64(str)
+// RFC 2047 인코딩 (이메일 헤더용, 75자 제한 분할)
+function encodeRfc2047(str) {
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(str);
+  // =?UTF-8?B?...?= → 12자 오버헤드, base64 최대 63자 → 원본 최대 45바이트
+  const chunkSize = 45;
+  const parts = [];
+  let i = 0;
+  while (i < bytes.length) {
+    let end = Math.min(i + chunkSize, bytes.length);
+    // UTF-8 멀티바이트 중간에서 자르지 않도록 보정
+    while (end < bytes.length && (bytes[end] & 0xc0) === 0x80) {
+      end--;
+    }
+    const chunk = bytes.slice(i, end);
+    let binary = "";
+    for (let j = 0; j < chunk.length; j++) {
+      binary += String.fromCharCode(chunk[j]);
+    }
+    parts.push("=?UTF-8?B?" + btoa(binary) + "?=");
+    i = end;
+  }
+  return parts.join("\r\n ");
+}
+
+// From 헤더 인코딩 (표시명에 한글 포함 가능)
+function encodeFromHeader(from) {
+  const match = from.match(/^(.+?)\s*<(.+?)>$/);
+  if (match) {
+    return encodeRfc2047(match[1].trim()) + " <" + match[2] + ">";
+  }
+  return from;
+}
+
+function buildMimeMessage({ from, to, subject, html }) {
+  // single-part MIME + 8bit 전송 (body base64 인코딩 제거)
+  const lines = [
+    `From: ${encodeFromHeader(from)}`,
+    `To: ${to}`,
+    `Subject: ${encodeRfc2047(subject)}`,
+    "MIME-Version: 1.0",
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    html,
+  ];
+  return lines.join("\r\n");
+}
+
+// ArrayBuffer → base64url
+function arrayBufferToBase64url(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
 }
 
-async function sendGmail(accessToken, from, to, subject, htmlBody) {
-  const boundary = "boundary_" + Date.now();
-  const fromEncoded = `=?UTF-8?B?${utf8ToBase64("JS기업지원센터")}?= <jusunge2603@gmail.com>`;
-  const rawEmail = [
-    `From: ${fromEncoded}`,
-    `To: ${to}`,
-    `Subject: =?UTF-8?B?${utf8ToBase64(subject)}?=`,
-    "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    "",
-    `--${boundary}`,
-    "Content-Type: text/html; charset=UTF-8",
-    "Content-Transfer-Encoding: base64",
-    "",
-    utf8ToBase64(htmlBody),
-    `--${boundary}--`,
-  ].join("\r\n");
+async function sendGmail(env, accessToken, { from, to, subject, html }) {
+  const mime = buildMimeMessage({ from, to, subject, html });
+  // uploadType=media: MIME 바이트 직접 전송 (base64url 래핑 제거 → 한글 제목 깨짐 해결)
+  const mimeBytes = new TextEncoder().encode(mime);
 
-  const encodedMessage = base64url(rawEmail);
-
-  const res = await fetch(
-    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+  const response = await fetch(
+    "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media",
     {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
+        "Content-Type": "message/rfc822",
       },
-      body: JSON.stringify({ raw: encodedMessage }),
+      body: mimeBytes,
     },
   );
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gmail send failed: ${err}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error("Gmail send failed: " + JSON.stringify(error));
   }
+
+  return await response.json();
 }
 
-// Email templates & sender
-async function sendEmails(env, data) {
-  const {
-    companyName,
-    bizNumber,
-    industry,
-    foundedYear,
-    fundAmount,
-    fundType,
-    ceoName,
-    phone,
-    email,
-    availableTime,
-    message,
-    now,
-  } = data;
-  const accessToken = await getGmailAccessToken(env);
-  const brandName = "JS기업지원센터";
-  const from = `${brandName} <jusunge2603@gmail.com>`;
+// ================================================
+// 문의 접수 핸들러
+// ================================================
 
-  const kstTime = new Date(now).toLocaleString("ko-KR", {
-    timeZone: "Asia/Seoul",
-  });
-  const kstDate = new Date(now).toLocaleDateString("ko-KR", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const kstTimeOnly = new Date(now).toLocaleTimeString("ko-KR", {
-    timeZone: "Asia/Seoul",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+async function handleSubmit(request, env) {
+  console.log("📥 INFINITES 문의 접수");
 
-  // 1. Customer confirmation email
-  if (email) {
-    const customerHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:580px;margin:0 auto;background:#ffffff;">
-  <div style="background:#0F4C81;padding:24px 36px;"><table style="width:100%;"><tr><td><p style="margin:0;color:#fff;font-size:13px;font-weight:300;letter-spacing:5px;text-transform:uppercase;">JS BUSINESS CENTER</p></td><td style="text-align:right;"><p style="margin:0;color:#8ab4d7;font-size:10px;letter-spacing:1px;">1688-8401</p></td></tr></table></div>
-  <div style="padding:28px 36px 24px;">
-    <p style="margin:0 0 4px;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#777;">CONFIRMATION</p>
-    <p style="margin:0 0 12px;font-size:18px;font-weight:400;color:#1a1a1a;line-height:1.4;">${ceoName} 님, 자금 심사 신청이 접수되었습니다.</p>
-    <p style="margin:0 0 20px;font-size:12px;color:#888;border-left:3px solid #0F4C81;padding-left:12px;">24시간 이내 담당 전문가가 연락드리겠습니다.</p>
-    <table style="width:100%;border-collapse:collapse;">
-      <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:9px 0;font-size:11px;color:#999;width:30%;">기업명</td><td style="padding:9px 0;font-size:13px;color:#1a1a1a;font-weight:500;">${companyName}</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:9px 0;font-size:11px;color:#999;">연락처</td><td style="padding:9px 0;font-size:13px;color:#1a1a1a;font-weight:500;">${phone}</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:9px 0;font-size:11px;color:#999;">희망자금</td><td style="padding:9px 0;font-size:13px;color:#1a1a1a;">${fundAmount || "-"}</td></tr>
-      <tr><td style="padding:9px 0;font-size:11px;color:#999;">자금종류</td><td style="padding:9px 0;font-size:13px;color:#1a1a1a;">${fundType || "-"}</td></tr>
-    </table>
-  </div>
-  <div style="padding:14px 36px;background:#fafafa;border-top:1px solid #f0f0f0;"><p style="margin:0;font-size:10px;color:#aaa;letter-spacing:0.3px;">JS BUSINESS CENTER &middot; 1688-8401 &middot; 평일 09:00-18:00</p></div>
-</div></body></html>`;
+  const data = await request.json();
+  const results = {
+    success: true,
+    airtable: { success: false, id: null, error: null },
+    email: {
+      customer: { success: false, error: null },
+      staff: { success: false, error: null },
+    },
+    telegram: { success: false, error: null },
+  };
 
-    await sendGmail(
-      accessToken,
-      from,
-      email,
-      `[${brandName}] 자금 심사 신청이 접수되었습니다`,
-      customerHtml,
-    );
-  }
+  const now = new Date();
+  const kst = getKSTNow();
+  const submitDate = kst.toISOString().split("T")[0];
+  const submitTime = kst.toISOString().split("T")[1].substring(0, 5);
 
-  // 2. Staff notification email
-  const staffHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:580px;margin:0 auto;background:#ffffff;">
-  <div style="background:#0F4C81;padding:24px 40px;display:flex;justify-content:space-between;align-items:center;">
-    <p style="margin:0;font-size:13px;font-weight:300;letter-spacing:5px;color:#ffffff;text-transform:uppercase;">JS BUSINESS CENTER</p>
-    <p style="margin:0;font-size:11px;color:#8ab4d7;">New Lead Alert</p>
-  </div>
-  <div style="padding:0 40px;">
-    <div style="padding:16px;border-left:3px solid #0F4C81;margin:24px 0;background:#e8f0f8;">
-      <p style="margin:0;font-size:12px;color:#0F4C81;">새로운 자금심사 신청이 접수되었습니다 &mdash; ${kstDate} ${kstTimeOnly}</p>
-    </div>
-    <p style="font-size:10px;letter-spacing:3px;color:#0F4C81;text-transform:uppercase;margin:28px 0 8px;">CLIENT</p>
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
-      <p style="margin:0;font-size:20px;color:#1a1a1a;font-weight:600;">${companyName}</p>
-      <p style="margin:0;font-size:14px;color:#0F4C81;font-weight:500;">${phone}</p>
-    </div>
-    <p style="font-size:13px;color:#666;margin:4px 0 0;">${ceoName} | ${email || "-"} | 통화희망: ${availableTime || "-"}</p>
-    <table style="width:100%;border-collapse:collapse;margin:24px 0;">
-      <tr>
-        <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;width:33%;"><p style="margin:0;font-size:9px;letter-spacing:2px;color:#888;text-transform:uppercase;">사업자번호</p><p style="margin:4px 0 0;font-size:13px;color:#1a1a1a;">${bizNumber || "-"}</p></td>
-        <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;width:33%;"><p style="margin:0;font-size:9px;letter-spacing:2px;color:#888;text-transform:uppercase;">업종</p><p style="margin:4px 0 0;font-size:13px;color:#1a1a1a;">${industry || "-"}</p></td>
-        <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;width:33%;"><p style="margin:0;font-size:9px;letter-spacing:2px;color:#888;text-transform:uppercase;">설립연도</p><p style="margin:4px 0 0;font-size:13px;color:#1a1a1a;">${foundedYear || "-"}</p></td>
-      </tr>
-      <tr>
-        <td style="padding:12px 8px;"><p style="margin:0;font-size:9px;letter-spacing:2px;color:#888;text-transform:uppercase;">희망자금</p><p style="margin:4px 0 0;font-size:13px;color:#1a1a1a;">${fundAmount || "-"}</p></td>
-        <td style="padding:12px 8px;" colspan="2"><p style="margin:0;font-size:9px;letter-spacing:2px;color:#888;text-transform:uppercase;">자금종류</p><p style="margin:4px 0 0;font-size:13px;color:#1a1a1a;">${fundType || "-"}</p></td>
-      </tr>
-    </table>${
-      message
-        ? `
-    <div style="padding:16px;background:#f8f8f8;border-left:3px solid #0F4C81;margin:0 0 24px;">
-      <p style="margin:0;font-size:9px;letter-spacing:2px;color:#888;text-transform:uppercase;">MESSAGE</p>
-      <p style="margin:8px 0 0;font-size:13px;color:#1a1a1a;white-space:pre-wrap;">${message}</p>
-    </div>`
-        : ""
+  // 1. Airtable 저장
+  if (env.AIRTABLE_TOKEN && env.AIRTABLE_BASE_ID) {
+    try {
+      const rawFields = data.airtableFields || {};
+      const fieldMap = {
+        기업명: "Company",
+        사업자번호: "BizNo",
+        대표자명: "Name",
+        연락처: "Phone",
+        이메일: "Email",
+        지역: "Region",
+        업종: "Industry",
+        설립연도: "Founded",
+        직전년도매출: "Revenue",
+        통화가능시간: "CallTime",
+        필요자금규모: "Amount",
+        자금종류: "FundType",
+        문의사항: "Message",
+        접수일: "Date",
+        접수시간: "Time",
+        상태: "Status",
+        메모: "Memo",
+      };
+
+      // 영문 필드명 셋 (Airtable에 실제 존재하는 필드만 허용)
+      const validFields = new Set(Object.values(fieldMap));
+      const fields = {};
+      for (const [key, value] of Object.entries(rawFields)) {
+        const engKey = fieldMap[key] || key;
+        // 매핑된 영문 필드만 전달 (알 수 없는 필드 무시)
+        if (validFields.has(engKey)) {
+          fields[engKey] = value;
+        }
+      }
+
+      if (fields["FundType"]) {
+        fields["FundType"] = Array.isArray(fields["FundType"])
+          ? fields["FundType"].join(", ")
+          : fields["FundType"];
+      }
+
+      fields["Date"] = submitDate;
+      fields["Time"] = submitTime;
+
+      const airtableResponse = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.AIRTABLE_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ fields }),
+        },
+      );
+
+      if (airtableResponse.ok) {
+        const airtableResult = await airtableResponse.json();
+        results.airtable.success = true;
+        results.airtable.id = airtableResult.id;
+        console.log("✅ Airtable 저장:", airtableResult.id);
+      } else {
+        const error = await airtableResponse.json();
+        results.airtable.error = error;
+        console.error("❌ Airtable:", error);
+      }
+    } catch (error) {
+      results.airtable.error = error.message;
     }
-    <div style="background:#fafafa;padding:16px;margin:0 0 24px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:12px;color:#666;">${fundType || "-"}</span>
-      <a href="https://admin.xn--js-j52if34d3ff1tbnyjj1r.kr/leads" style="display:inline-block;background:#0F4C81;color:#fff;padding:8px 20px;font-size:12px;text-decoration:none;letter-spacing:1px;">접수 확인</a>
-    </div>
-  </div>
-  <div style="padding:16px 40px;border-top:1px solid #eee;">
-    <p style="margin:0;font-size:10px;color:#bbb;">JS BUSINESS CENTER 자동 알림 . jusunge2603@gmail.com</p>
-  </div>
-</div></body></html>`;
-
-  const staffRecipients = ["jusunge2603@gmail.com", "mkt@polarad.co.kr"];
-  for (const staffTo of staffRecipients) {
-    await sendGmail(
-      accessToken,
-      from,
-      staffTo,
-      `[${brandName}] 새로운 심사 신청 - ${companyName} (${ceoName})`,
-      staffHtml,
-    );
   }
+
+  // 2. 이메일 발송 (Gmail OAuth2)
+  if (
+    env.GMAIL_CLIENT_ID &&
+    env.GMAIL_CLIENT_SECRET &&
+    env.GMAIL_REFRESH_TOKEN
+  ) {
+    let accessToken;
+    try {
+      accessToken = await getGmailAccessToken(env);
+    } catch (error) {
+      console.error("❌ Gmail 토큰:", error.message);
+      results.email.customer.error = error.message;
+      results.email.staff.error = error.message;
+    }
+
+    if (accessToken) {
+      // 고객 이메일
+      if (data.customerEmail && data.customerHtml) {
+        try {
+          await sendGmail(env, accessToken, {
+            from: data.emailFrom || "INFINITES <noreply@infinites.co.kr>",
+            to: data.customerEmail,
+            subject:
+              data.customerSubject ||
+              "[INFINITES] 무료진단 신청이 접수되었습니다",
+            html: data.customerHtml,
+          });
+          results.email.customer.success = true;
+          console.log("✅ 고객 이메일 발송");
+        } catch (error) {
+          results.email.customer.error = error.message;
+          console.error("❌ 고객 이메일:", error.message);
+        }
+      }
+
+      // 담당자 이메일 (서버 환경변수에서 읽음)
+      const staffEmails = env.STAFF_EMAILS
+        ? env.STAFF_EMAILS.split(",")
+            .map((e) => e.trim())
+            .filter(Boolean)
+        : [];
+      if (staffEmails.length > 0 && data.staffHtml) {
+        try {
+          for (const staffEmail of staffEmails) {
+            await sendGmail(env, accessToken, {
+              from: data.emailFrom || "INFINITES <noreply@infinites.co.kr>",
+              to: staffEmail,
+              subject: data.staffSubject || "[INFINITES] 신규 무료진단 접수",
+              html: data.staffHtml,
+            });
+          }
+          results.email.staff.success = true;
+          console.log("✅ 담당자 이메일 발송");
+        } catch (error) {
+          results.email.staff.error = error.message;
+          console.error("❌ 담당자 이메일:", error.message);
+        }
+      }
+    }
+  }
+
+  // 3. Telegram 발송
+  if (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) {
+    try {
+      const fields = data.airtableFields || {};
+      const telegramText = buildTelegramMessage(fields, submitDate, submitTime);
+
+      const telegramResponse = await fetch(
+        `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: env.TELEGRAM_CHAT_ID,
+            text: telegramText,
+            parse_mode: "HTML",
+            disable_web_page_preview: true,
+          }),
+        },
+      );
+
+      if (telegramResponse.ok) {
+        results.telegram.success = true;
+        console.log("✅ Telegram 발송");
+      } else {
+        const error = await telegramResponse.json();
+        results.telegram.error = error;
+        console.error("❌ Telegram:", error);
+      }
+    } catch (error) {
+      results.telegram.error = error.message;
+    }
+  }
+
+  return new Response(JSON.stringify(results), {
+    status: 200,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
 }
 
-// GET /api/analytics - GA4 데이터 조회
-async function handleAnalytics(request, env) {
-  // Auth check
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return json({ error: "인증이 필요합니다" }, 401, request, env);
+// Telegram 메시지 생성
+function buildTelegramMessage(fields, submitDate, submitTime) {
+  let msg = "🔔 <b>INFINITES 신규 상담</b>\n\n";
+  msg += "👤 <b>고객정보</b>\n";
+  msg +=
+    "├ 기업명: <b>" +
+    escapeHtml(fields["기업명"] || fields["Company"]) +
+    "</b>\n";
+  msg +=
+    "├ 사업자번호: " +
+    escapeHtml(fields["사업자번호"] || fields["BizNo"]) +
+    "\n";
+  msg +=
+    "├ 대표자명: <b>" +
+    escapeHtml(fields["대표자명"] || fields["Name"]) +
+    "</b>\n";
+  msg +=
+    "├ 연락처: <code>" +
+    escapeHtml(fields["연락처"] || fields["Phone"]) +
+    "</code>\n";
+  msg += "├ 이메일: " + escapeHtml(fields["이메일"] || fields["Email"]) + "\n";
+  msg += "├ 지역: " + escapeHtml(fields["지역"] || fields["Region"]) + "\n";
+  msg +=
+    "└ 통화가능: <b>" +
+    escapeHtml(fields["통화가능시간"] || fields["CallTime"]) +
+    "</b>\n\n";
+
+  msg += "💰 <b>자금정보</b>\n";
+  const fundTypes = fields["자금종류"] || fields["FundType"];
+  if (fundTypes) msg += "├ 자금종류: " + escapeHtml(fundTypes) + "\n";
+  const amount = fields["필요자금규모"] || fields["Amount"];
+  const industry = fields["업종"] || fields["Industry"];
+  const founded = fields["설립연도"] || fields["Founded"];
+  const revenue = fields["직전년도매출"] || fields["Revenue"];
+  if (amount) msg += "├ 필요규모: " + escapeHtml(amount) + "\n";
+  if (industry) msg += "├ 업종: " + escapeHtml(industry) + "\n";
+  if (founded) msg += "├ 설립연도: " + escapeHtml(founded) + "\n";
+  if (revenue) msg += "└ 매출: " + escapeHtml(revenue) + "\n";
+
+  const message = fields["문의사항"] || fields["Message"];
+  if (message && message !== "-") {
+    msg += "\n💬 <b>문의</b>\n" + escapeHtml(message) + "\n";
   }
-  try {
-    const token = authHeader.split(" ")[1];
-    const payload = JSON.parse(atob(token));
-    if (payload.exp < Date.now())
-      return json({ error: "토큰이 만료되었습니다" }, 401, request, env);
-  } catch {
-    return json({ error: "유효하지 않은 토큰입니다" }, 401, request, env);
-  }
 
-  const url = new URL(request.url);
-  const startDateParam = url.searchParams.get("startDate");
-  const endDateParam = url.searchParams.get("endDate");
-  const days = parseInt(url.searchParams.get("days") || "30");
-
-  // Support both startDate/endDate and days parameter
-  const dateRange =
-    startDateParam && endDateParam
-      ? { startDate: startDateParam, endDate: endDateParam }
-      : { startDate: `${days}daysAgo`, endDate: "today" };
-
-  try {
-    const gaToken = await getGAAccessToken(env);
-    const propertyId = env.GA_PROPERTY_ID;
-
-    // 1. Main metrics + trend
-    const mainReport = await gaRunReport(gaToken, propertyId, {
-      dateRanges: [dateRange],
-      metrics: [
-        { name: "activeUsers" },
-        { name: "screenPageViews" },
-        { name: "averageSessionDuration" },
-        { name: "bounceRate" },
-      ],
-    });
-
-    const row = mainReport.rows?.[0]?.metricValues || [];
-    const visitors = parseInt(row[0]?.value || "0");
-    const pageviews = parseInt(row[1]?.value || "0");
-    const avgDuration = parseFloat(row[2]?.value || "0");
-    const bounceRate = parseFloat(row[3]?.value || "0");
-    const mins = Math.floor(avgDuration / 60);
-    const secs = Math.round(avgDuration % 60);
-
-    // 2. Traffic sources
-    const trafficReport = await gaRunReport(gaToken, propertyId, {
-      dateRanges: [dateRange],
-      dimensions: [{ name: "sessionDefaultChannelGroup" }],
-      metrics: [{ name: "activeUsers" }],
-      orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
-      limit: 10,
-    });
-
-    const traffic = (trafficReport.rows || []).map((r) => ({
-      source: r.dimensionValues[0].value,
-      visitors: parseInt(r.metricValues[0].value),
-    }));
-
-    // 3. Devices
-    const deviceReport = await gaRunReport(gaToken, propertyId, {
-      dateRanges: [dateRange],
-      dimensions: [{ name: "deviceCategory" }],
-      metrics: [{ name: "activeUsers" }],
-      orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
-    });
-
-    const devices = (deviceReport.rows || []).map((r) => ({
-      device: r.dimensionValues[0].value,
-      visitors: parseInt(r.metricValues[0].value),
-    }));
-
-    // 4. Popular pages
-    const pageReport = await gaRunReport(gaToken, propertyId, {
-      dateRanges: [dateRange],
-      dimensions: [{ name: "pagePath" }],
-      metrics: [{ name: "screenPageViews" }],
-      orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
-      limit: 10,
-    });
-
-    const pages = (pageReport.rows || []).map((r) => ({
-      page: r.dimensionValues[0].value,
-      views: parseInt(r.metricValues[0].value),
-    }));
-
-    // 5. Geography
-    const geoReport = await gaRunReport(gaToken, propertyId, {
-      dateRanges: [dateRange],
-      dimensions: [{ name: "region" }],
-      metrics: [{ name: "activeUsers" }],
-      orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
-      limit: 10,
-    });
-
-    const geography = (geoReport.rows || []).map((r) => ({
-      region: r.dimensionValues[0].value,
-      visitors: parseInt(r.metricValues[0].value),
-    }));
-
-    // 6. Referrer sources
-    const referrerReport = await gaRunReport(gaToken, propertyId, {
-      dateRanges: [dateRange],
-      dimensions: [{ name: "sessionSource" }],
-      metrics: [{ name: "activeUsers" }],
-      orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
-      limit: 10,
-    });
-
-    const referrers = (referrerReport.rows || []).map((r) => ({
-      url: r.dimensionValues[0].value,
-      visitors: parseInt(r.metricValues[0].value),
-    }));
-
-    // 7. Daily trend
-    const trendReport = await gaRunReport(gaToken, propertyId, {
-      dateRanges: [dateRange],
-      dimensions: [{ name: "date" }],
-      metrics: [{ name: "activeUsers" }, { name: "screenPageViews" }],
-      orderBys: [{ dimension: { dimensionName: "date" } }],
-    });
-
-    const trend = {
-      labels: (trendReport.rows || []).map((r) => {
-        const d = r.dimensionValues[0].value;
-        return `${d.slice(4, 6)}/${d.slice(6, 8)}`;
-      }),
-      visitors: (trendReport.rows || []).map((r) =>
-        parseInt(r.metricValues[0].value),
-      ),
-      pageviews: (trendReport.rows || []).map((r) =>
-        parseInt(r.metricValues[1].value),
-      ),
-    };
-
-    return json(
-      {
-        visitors,
-        pageviews,
-        avg_duration: `${mins}분 ${secs}초`,
-        bounce_rate: `${bounceRate.toFixed(1)}%`,
-        traffic,
-        devices,
-        pages,
-        geography,
-        referrers,
-        trend,
-        updated: new Date().toISOString(),
-      },
-      200,
-      request,
-      env,
-    );
-  } catch (err) {
-    console.error("Analytics error:", err.message || err);
-    return json(
-      { error: "Analytics 데이터 조회 실패", detail: err.message },
-      500,
-      request,
-      env,
-    );
-  }
+  msg += "\n📅 " + submitDate + " " + submitTime;
+  msg +=
+    '\n\n📋 <a href="https://admin.infinites.co.kr/leads">접수관리 바로가기</a>';
+  return msg;
 }
 
-// Google Service Account JWT → Access Token
-async function getGAAccessToken(env) {
-  const sa = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_KEY);
+// ================================================
+// 접수내역 API
+// ================================================
 
-  // Create JWT header and claim
-  const header = { alg: "RS256", typ: "JWT" };
+async function handleLeadsAPI(request, env, path) {
+  const method = request.method;
+
+  // GET /leads
+  if (method === "GET" && path === "/leads") {
+    try {
+      const sortField = encodeURIComponent("Date");
+      const airtableUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}?sort[0][field]=${sortField}&sort[0][direction]=desc`;
+      const airtableResponse = await fetch(airtableUrl, {
+        headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
+      });
+
+      if (!airtableResponse.ok) {
+        const error = await airtableResponse.json();
+        return new Response(
+          JSON.stringify({ success: false, error: error.error?.message }),
+          {
+            status: 500,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      const result = await airtableResponse.json();
+      const leads = result.records.map((record) => ({
+        id: record.id,
+        createdTime: record.createdTime,
+        Company: record.fields["Company"],
+        BizNo: record.fields["BizNo"],
+        Name: record.fields["Name"],
+        Phone: record.fields["Phone"],
+        Email: record.fields["Email"],
+        Region: record.fields["Region"],
+        Industry: record.fields["Industry"],
+        Founded: record.fields["Founded"],
+        Revenue: record.fields["Revenue"],
+        CallTime: record.fields["CallTime"],
+        Amount: record.fields["Amount"],
+        FundType: record.fields["FundType"],
+        Message: record.fields["Message"],
+        Date: record.fields["Date"],
+        Time: record.fields["Time"],
+        Status: record.fields["Status"] || "신규",
+        Memo: record.fields["Memo"] || "",
+      }));
+
+      return new Response(JSON.stringify({ success: true, leads }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  // PATCH /leads/:id
+  if (method === "PATCH" && path.startsWith("/leads/")) {
+    const recordId = path.replace("/leads/", "");
+    try {
+      const data = await request.json();
+      const fields = {};
+      if (data.Status !== undefined) fields["Status"] = data.Status;
+      else if (data.상태 !== undefined) fields["Status"] = data.상태;
+      if (data.Memo !== undefined) fields["Memo"] = data.Memo;
+      else if (data.메모 !== undefined) fields["Memo"] = data.메모;
+
+      const airtableResponse = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}/${recordId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${env.AIRTABLE_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ fields }),
+        },
+      );
+
+      if (!airtableResponse.ok) {
+        const error = await airtableResponse.json();
+        return new Response(
+          JSON.stringify({ success: false, error: error.error?.message }),
+          {
+            status: 500,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      const result = await airtableResponse.json();
+      return new Response(JSON.stringify({ success: true, record: result }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  // DELETE /leads/:id
+  if (method === "DELETE" && path.startsWith("/leads/")) {
+    const recordId = path.replace("/leads/", "");
+    try {
+      const airtableResponse = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}/${recordId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
+        },
+      );
+
+      if (!airtableResponse.ok) {
+        const error = await airtableResponse.json();
+        return new Response(
+          JSON.stringify({ success: false, error: error.error?.message }),
+          {
+            status: 500,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      const result = await airtableResponse.json();
+      return new Response(
+        JSON.stringify({ success: true, deleted: true, id: result.id }),
+        {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  return new Response(JSON.stringify({ error: "Method not allowed" }), {
+    status: 405,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
+}
+
+// ================================================
+// 게시판 API
+// ================================================
+
+async function handleBoardAPI(request, env, path) {
+  const method = request.method;
+
+  // GET /board or /posts
+  if (method === "GET" && (path === "/board" || path === "/posts")) {
+    try {
+      const url = new URL(request.url);
+      const limit = parseInt(url.searchParams.get("limit")) || 0;
+      const noCache = url.searchParams.get("nocache") === "1";
+      const CACHE_KEY = "board_posts_cache";
+      const CACHE_TTL = 300; // 5분
+
+      // KV 캐시 확인 (nocache 파라미터가 없을 때)
+      if (!noCache && env.OTP_KV) {
+        const cached = await env.OTP_KV.get(CACHE_KEY);
+        if (cached) {
+          let parsed = JSON.parse(cached);
+          if (limit > 0) {
+            parsed.records = parsed.records.slice(0, limit);
+            parsed.posts = parsed.posts.slice(0, limit);
+          }
+          return new Response(JSON.stringify(parsed), {
+            headers: {
+              ...CORS_HEADERS,
+              "Content-Type": "application/json",
+              "X-Cache": "HIT",
+            },
+          });
+        }
+      }
+
+      const airtableResponse = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/board2?sort[0][field]=date&sort[0][direction]=desc`,
+        { headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` } },
+      );
+
+      if (!airtableResponse.ok) {
+        return new Response(JSON.stringify({ posts: [], records: [] }), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      const data = await airtableResponse.json();
+      let records = (data.records || []).map((record) => ({
+        id: record.id,
+        제목: record.fields["title"] || "",
+        내용: record.fields["content"] || "",
+        요약:
+          record.fields["summary"] ||
+          record.fields["content"]?.substring(0, 100) ||
+          "",
+        카테고리: record.fields["category"] || record.fields["tag"] || "",
+        썸네일URL: record.fields["thumbnailUrl"] || "",
+        태그: record.fields["tags"] || record.fields["tag"] || "",
+        작성일: record.fields["date"] || "",
+        조회수: record.fields["views"] || 0,
+        게시여부: record.fields["isPublic"] !== false,
+        slug: record.fields["slug"] || "",
+      }));
+
+      // post.html 관련글에서 사용하는 영문키 posts 배열도 함께 반환
+      const posts = records.map((r) => ({
+        id: r.id,
+        title: r.제목,
+        content: r.내용,
+        description: r.요약,
+        category: r.카테고리,
+        thumbnail: r.썸네일URL,
+        tags: r.태그,
+        date: r.작성일,
+        views: r.조회수,
+        isPublic: r.게시여부,
+        slug: r.slug,
+      }));
+
+      // KV 캐시 저장 (전체 데이터)
+      if (env.OTP_KV) {
+        await env.OTP_KV.put(CACHE_KEY, JSON.stringify({ records, posts }), {
+          expirationTtl: CACHE_TTL,
+        });
+      }
+
+      if (limit > 0) {
+        records = records.slice(0, limit);
+        posts.splice(limit);
+      }
+
+      return new Response(JSON.stringify({ records, posts }), {
+        headers: {
+          ...CORS_HEADERS,
+          "Content-Type": "application/json",
+          "X-Cache": "MISS",
+        },
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  // POST /board
+  if (method === "POST" && path === "/board") {
+    try {
+      const data = await request.json();
+      const fields = {
+        title: data.제목 || "",
+        content: data.내용 || "",
+        summary: data.요약 || "",
+        category: data.카테고리 || "",
+        tags: data.태그 || "",
+        thumbnailUrl: data.썸네일URL || "",
+        date: data.작성일 || formatDateKST(new Date()),
+        isPublic: data.게시여부 !== false,
+      };
+
+      const airtableResponse = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/board2`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.AIRTABLE_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ fields }),
+        },
+      );
+
+      if (!airtableResponse.ok) {
+        const error = await airtableResponse.json();
+        return new Response(
+          JSON.stringify({ success: false, error: error.error?.message }),
+          {
+            status: 500,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      const result = await airtableResponse.json();
+      // 캐시 무효화
+      if (env.OTP_KV) await env.OTP_KV.delete("board_posts_cache");
+      return new Response(JSON.stringify({ success: true, id: result.id }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  // PATCH /board/:id
+  if (method === "PATCH" && path.startsWith("/board/")) {
+    const recordId = path.replace("/board/", "");
+    try {
+      // 정적 게시글 수정 차단
+      const checkResponse = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/board2/${recordId}`,
+        { headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` } },
+      );
+      if (checkResponse.ok) {
+        const checkResult = await checkResponse.json();
+        const slug = checkResult.fields?.slug;
+        if (slug && STATIC_SLUGS.includes(slug)) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: "샘플 게시글은 수정할 수 없습니다.",
+            }),
+            {
+              status: 403,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+      }
+
+      const data = await request.json();
+      const fields = {};
+      if (data.제목 !== undefined) fields.title = data.제목;
+      if (data.내용 !== undefined) fields.content = data.내용;
+      if (data.요약 !== undefined) fields.summary = data.요약;
+      if (data.카테고리 !== undefined) fields.category = data.카테고리;
+      if (data.태그 !== undefined) fields.tags = data.태그;
+      if (data.썸네일URL !== undefined) fields.thumbnailUrl = data.썸네일URL;
+      if (data.작성일 !== undefined) fields.date = data.작성일;
+      if (data.게시여부 !== undefined) fields.isPublic = data.게시여부;
+
+      const airtableResponse = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/board2/${recordId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${env.AIRTABLE_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ fields }),
+        },
+      );
+
+      if (!airtableResponse.ok) {
+        const error = await airtableResponse.json();
+        return new Response(
+          JSON.stringify({ success: false, error: error.error?.message }),
+          {
+            status: 500,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      const result = await airtableResponse.json();
+      // 캐시 무효화
+      if (env.OTP_KV) await env.OTP_KV.delete("board_posts_cache");
+      return new Response(JSON.stringify({ success: true, id: result.id }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  // DELETE /board/:id
+  if (method === "DELETE" && path.startsWith("/board/")) {
+    const recordId = path.replace("/board/", "");
+    try {
+      // 정적 게시글 삭제 차단
+      const checkResponse = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/board2/${recordId}`,
+        { headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` } },
+      );
+      if (checkResponse.ok) {
+        const checkResult = await checkResponse.json();
+        const slug = checkResult.fields?.slug;
+        if (slug && STATIC_SLUGS.includes(slug)) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: "샘플 게시글은 삭제할 수 없습니다.",
+            }),
+            {
+              status: 403,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+      }
+
+      const airtableResponse = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/board2/${recordId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
+        },
+      );
+
+      if (!airtableResponse.ok) {
+        const error = await airtableResponse.json();
+        return new Response(
+          JSON.stringify({ success: false, error: error.error?.message }),
+          {
+            status: 500,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      const result = await airtableResponse.json();
+      // 캐시 무효화
+      if (env.OTP_KV) await env.OTP_KV.delete("board_posts_cache");
+      return new Response(
+        JSON.stringify({ success: true, deleted: true, id: result.id }),
+        {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  // GET /posts/:id
+  if (method === "GET" && path.startsWith("/posts/")) {
+    try {
+      const recordId = path.replace("/posts/", "");
+      const airtableResponse = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/board2/${recordId}`,
+        { headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` } },
+      );
+
+      const record = await airtableResponse.json();
+      const post = {
+        id: record.id,
+        title: record.fields["title"] || "",
+        content: record.fields["content"] || "",
+        description:
+          record.fields["summary"] ||
+          record.fields["content"]?.substring(0, 150) ||
+          "",
+        category: record.fields["category"] || record.fields["tag"] || "",
+        thumbnail: record.fields["thumbnailUrl"] || "",
+        tags: record.fields["tags"] || record.fields["tag"] || "",
+        date: record.fields["date"] || "",
+        views: record.fields["views"] || 0,
+        isPublic: record.fields["isPublic"] || false,
+        slug: record.fields["slug"] || "",
+      };
+
+      return new Response(JSON.stringify({ post }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  return new Response(JSON.stringify({ error: "Not found" }), {
+    status: 404,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
+}
+
+// ================================================
+// 팝업 API
+// ================================================
+
+async function handlePopupsAPI(request, env, path) {
+  const method = request.method;
+  const TABLE = "popups";
+
+  // GET /popups/all
+  if (method === "GET" && path === "/popups/all") {
+    try {
+      const res = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${TABLE}?sort[0][field]=order&sort[0][direction]=asc`,
+        { headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` } },
+      );
+      const data = await res.json();
+      const popups = (data.records || []).map((r) => ({
+        id: r.id,
+        title: r.fields.title || "",
+        altText: r.fields.altText || "",
+        imageUrl: r.fields.imageUrl || "",
+        linkUrl: r.fields.linkUrl || "",
+        linkTarget: r.fields.linkTarget || "_self",
+        order: r.fields.order || 1,
+        isActive: r.fields.isActive || false,
+        startDate: r.fields.startDate || null,
+        endDate: r.fields.endDate || null,
+      }));
+      return new Response(JSON.stringify({ popups }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ popups: [], error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  // POST /popups
+  if (method === "POST" && path === "/popups") {
+    try {
+      const data = await request.json();
+      const fields = {
+        title: data.title,
+        altText: data.altText,
+        imageUrl: data.imageUrl,
+        linkUrl: data.linkUrl || "",
+        linkTarget: data.linkTarget || "_self",
+        order: data.order || 1,
+        isActive: data.isActive || false,
+        startDate: data.startDate || "",
+        endDate: data.endDate || "",
+      };
+      const res = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${TABLE}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.AIRTABLE_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ fields }),
+        },
+      );
+      const result = await res.json();
+      return new Response(
+        JSON.stringify({
+          success: res.ok,
+          id: result.id,
+          error: result.error?.message,
+        }),
+        {
+          status: res.ok ? 200 : 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  // PATCH /popups/:id
+  if (method === "PATCH" && path.startsWith("/popups/")) {
+    const id = path.replace("/popups/", "");
+    try {
+      const data = await request.json();
+      const fields = {};
+      if (data.title !== undefined) fields.title = data.title;
+      if (data.altText !== undefined) fields.altText = data.altText;
+      if (data.imageUrl !== undefined) fields.imageUrl = data.imageUrl;
+      if (data.linkUrl !== undefined) fields.linkUrl = data.linkUrl;
+      if (data.linkTarget !== undefined) fields.linkTarget = data.linkTarget;
+      if (data.order !== undefined) fields.order = data.order;
+      if (data.isActive !== undefined) fields.isActive = data.isActive;
+      if (data.startDate !== undefined) fields.startDate = data.startDate;
+      if (data.endDate !== undefined) fields.endDate = data.endDate;
+
+      const res = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${TABLE}/${id}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${env.AIRTABLE_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ fields }),
+        },
+      );
+      const result = await res.json();
+      return new Response(
+        JSON.stringify({ success: res.ok, error: result.error?.message }),
+        {
+          status: res.ok ? 200 : 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  // DELETE /popups/:id
+  if (method === "DELETE" && path.startsWith("/popups/")) {
+    const id = path.replace("/popups/", "");
+    try {
+      const res = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${TABLE}/${id}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
+        },
+      );
+      return new Response(JSON.stringify({ success: res.ok }), {
+        status: res.ok ? 200 : 500,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  return new Response(JSON.stringify({ error: "Not found" }), {
+    status: 404,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
+}
+
+// ================================================
+// 임직원 API
+// ================================================
+
+async function handleEmployeesAPI(request, env, path) {
+  const method = request.method;
+  const TABLE = "employees";
+
+  // GET /employees/all
+  if (method === "GET" && path === "/employees/all") {
+    try {
+      const res = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${TABLE}?sort[0][field]=order&sort[0][direction]=asc`,
+        { headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` } },
+      );
+      const data = await res.json();
+      const employees = (data.records || []).map((r) => ({
+        id: r.id,
+        이름: r.fields.name || "",
+        직책: r.fields.position || "",
+        소개: r.fields.intro || "",
+        프로필이미지URL: r.fields.profileImageUrl || "",
+        이미지위치: r.fields.imagePosition || "center 20%",
+        순서: r.fields.order || 1,
+        공개여부: r.fields.isActive || false,
+        자금유형: r.fields.fundType || "",
+        업무영역: r.fields.workArea || "",
+        산업분야: r.fields.industry || "",
+      }));
+      return new Response(JSON.stringify({ employees }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ employees: [], error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  // POST /employees
+  if (method === "POST" && path === "/employees") {
+    try {
+      const data = await request.json();
+      const fields = {
+        name: data.이름,
+        position: data.직책,
+        intro: data.소개 || "",
+        profileImageUrl: data.프로필이미지URL || "",
+        imagePosition: data.이미지위치 || "center 20%",
+        order: data.순서 || 1,
+        isActive: data.공개여부 || false,
+        fundType: data.자금유형 || "",
+        workArea: data.업무영역 || "",
+        industry: data.산업분야 || "",
+      };
+      const res = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${TABLE}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.AIRTABLE_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ fields }),
+        },
+      );
+      const result = await res.json();
+      return new Response(
+        JSON.stringify({
+          success: res.ok,
+          id: result.id,
+          error: result.error?.message,
+        }),
+        {
+          status: res.ok ? 200 : 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  // PATCH /employees/:id
+  if (method === "PATCH" && path.startsWith("/employees/")) {
+    const id = path.replace("/employees/", "");
+    try {
+      const data = await request.json();
+      const fields = {};
+      if (data.이름 !== undefined) fields.name = data.이름;
+      if (data.직책 !== undefined) fields.position = data.직책;
+      if (data.소개 !== undefined) fields.intro = data.소개;
+      if (data.프로필이미지URL !== undefined)
+        fields.profileImageUrl = data.프로필이미지URL;
+      if (data.이미지위치 !== undefined) fields.imagePosition = data.이미지위치;
+      if (data.순서 !== undefined) fields.order = data.순서;
+      if (data.공개여부 !== undefined) fields.isActive = data.공개여부;
+      if (data.자금유형 !== undefined) fields.fundType = data.자금유형;
+      if (data.업무영역 !== undefined) fields.workArea = data.업무영역;
+      if (data.산업분야 !== undefined) fields.industry = data.산업분야;
+
+      const res = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${TABLE}/${id}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${env.AIRTABLE_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ fields }),
+        },
+      );
+      const result = await res.json();
+      return new Response(
+        JSON.stringify({ success: res.ok, error: result.error?.message }),
+        {
+          status: res.ok ? 200 : 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  // DELETE /employees/:id
+  if (method === "DELETE" && path.startsWith("/employees/")) {
+    const id = path.replace("/employees/", "");
+    try {
+      const res = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${TABLE}/${id}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
+        },
+      );
+      return new Response(JSON.stringify({ success: res.ok }), {
+        status: res.ok ? 200 : 500,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
+  return new Response(JSON.stringify({ error: "Not found" }), {
+    status: 404,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
+}
+
+// ================================================
+// GA4 Analytics API (Google Analytics Data API v1beta)
+// ================================================
+
+// Base64URL 인코딩 (JWT용)
+function base64url(source) {
+  let str = "";
+  const bytes = new Uint8Array(source);
+  for (let i = 0; i < bytes.byteLength; i++)
+    str += String.fromCharCode(bytes[i]);
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+// PEM → CryptoKey 변환
+async function importPrivateKey(pem) {
+  const pemContents = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\s/g, "");
+  const binaryDer = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
+  return crypto.subtle.importKey(
+    "pkcs8",
+    binaryDer,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+}
+
+// JWT 생성 → Google OAuth2 액세스 토큰 교환
+async function getGoogleAccessToken(env) {
+  const sa = JSON.parse(env.GA_SERVICE_ACCOUNT_JSON);
   const now = Math.floor(Date.now() / 1000);
-  const claim = {
+
+  const header = { alg: "RS256", typ: "JWT" };
+  const payload = {
     iss: sa.client_email,
     scope: "https://www.googleapis.com/auth/analytics.readonly",
     aud: "https://oauth2.googleapis.com/token",
@@ -765,58 +1303,33 @@ async function getGAAccessToken(env) {
     exp: now + 3600,
   };
 
-  const headerB64 = btoa(JSON.stringify(header))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-  const claimB64 = btoa(JSON.stringify(claim))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-  const signingInput = `${headerB64}.${claimB64}`;
+  const enc = new TextEncoder();
+  const headerB64 = base64url(enc.encode(JSON.stringify(header)));
+  const payloadB64 = base64url(enc.encode(JSON.stringify(payload)));
+  const sigInput = `${headerB64}.${payloadB64}`;
 
-  // Import RSA private key and sign
-  const pemBody = sa.private_key
-    .replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\s/g, "");
-  const keyData = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0));
-
-  const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8",
-    keyData.buffer,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-
+  const key = await importPrivateKey(sa.private_key);
   const signature = await crypto.subtle.sign(
     "RSASSA-PKCS1-v1_5",
-    cryptoKey,
-    new TextEncoder().encode(signingInput),
+    key,
+    enc.encode(sigInput),
   );
-  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  const jwt = `${sigInput}.${base64url(signature)}`;
 
-  const jwt = `${signingInput}.${sigB64}`;
-
-  // Exchange JWT for access token
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
   });
 
   const tokenData = await tokenRes.json();
   if (!tokenData.access_token)
-    throw new Error("GA token failed: " + JSON.stringify(tokenData));
+    throw new Error("토큰 발급 실패: " + JSON.stringify(tokenData));
   return tokenData.access_token;
 }
 
-// GA Data API v1beta helper
-async function gaRunReport(accessToken, propertyId, body) {
+// GA4 Data API 호출 헬퍼
+async function ga4RunReport(accessToken, propertyId, body) {
   const res = await fetch(
     `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
     {
@@ -828,602 +1341,1054 @@ async function gaRunReport(accessToken, propertyId, body) {
       body: JSON.stringify(body),
     },
   );
+  const data = await res.json();
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`GA API error: ${err}`);
+    const msg = data.error?.message || JSON.stringify(data);
+    throw new Error(`GA4 API ${res.status}: ${msg}`);
   }
-  return res.json();
+  return data;
 }
 
-// R2 이미지 삭제 헬퍼 (URL에서 key 추출 후 삭제)
-async function deleteR2Image(env, imageUrl) {
-  if (!imageUrl || !env.R2_PUBLIC_URL) return;
-  const prefix = env.R2_PUBLIC_URL + "/";
-  if (!imageUrl.startsWith(prefix)) return;
-  const key = imageUrl.slice(prefix.length);
-  if (key) {
-    try {
-      await env.R2_BUCKET.delete(key);
-    } catch (e) {
-      console.error("R2 delete error:", e);
-    }
-  }
+// 기간 문자열 생성 (daysAgo → YYYY-MM-DD)
+function daysAgoDate(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().split("T")[0];
 }
 
-// ===== Upload Handler =====
-async function handleUpload(request, env) {
-  const authErr = requireAuth(request);
-  if (authErr)
-    return json({ error: authErr.error }, authErr.status, request, env);
-
-  const formData = await request.formData();
-  const file = formData.get("file");
-  const folder = formData.get("folder") || "misc";
-
-  if (!file || !file.name) {
-    return json({ error: "파일이 없습니다" }, 400, request, env);
-  }
-
-  const timestamp = Date.now();
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const key = `${folder}/${timestamp}-${safeName}`;
-
-  await env.R2_BUCKET.put(key, file.stream(), {
-    httpMetadata: { contentType: file.type || "image/webp" },
-  });
-
-  const publicUrl = `${env.R2_PUBLIC_URL}/${key}`;
-  return json({ success: true, url: publicUrl }, 200, request, env);
-}
-
-// ===== Board Handlers =====
-function mapBoardRecord(r) {
-  return {
-    id: r.id,
-    제목: r.fields["제목"] || "",
-    요약: r.fields["요약"] || "",
-    내용: r.fields["내용"] || "",
-    카테고리: r.fields["카테고리"] || "",
-    태그: r.fields["태그"] || "",
-    작성일: r.fields["작성일"] || "",
-    게시여부: r.fields["게시여부"] || false,
-    썸네일: r.fields["썸네일URL"] || "",
-    썸네일URL: r.fields["썸네일URL"] || "",
-    조회수: r.fields["조회수"] || 0,
-    슬러그: r.fields["슬러그"] || "",
-  };
-}
-
-async function handleGetBoard(request, env) {
-  const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  const slug = url.searchParams.get("slug");
-  const admin = url.searchParams.get("admin") === "true";
-
-  if (admin) {
-    const authErr = requireAuth(request);
-    if (authErr)
-      return json({ error: authErr.error }, authErr.status, request, env);
-  }
-
-  const tableId = env.AIRTABLE_BOARD_TABLE_ID;
-
-  // Single post by ID
-  if (id) {
-    const res = await airtableFetch(env, tableId, { recordId: id });
-    if (!res.ok)
-      return json(
-        { success: false, error: "게시글을 찾을 수 없습니다" },
-        404,
-        request,
-        env,
-      );
-    const record = await res.json();
-    // Increment view count
-    await airtableFetch(env, tableId, {
-      method: "PATCH",
-      recordId: id,
-      body: {
-        fields: { 조회수: (record.fields["조회수"] || 0) + 1 },
-        typecast: true,
+// GA4 Analytics 메인 핸들러
+async function handleAnalyticsAPI(request, env, url, path) {
+  if (!env.GA_SERVICE_ACCOUNT_JSON || !env.GA_PROPERTY_ID) {
+    return new Response(
+      JSON.stringify({
+        error: "GA4 설정 필요",
+        message:
+          "GA_SERVICE_ACCOUNT_JSON과 GA_PROPERTY_ID 환경변수를 설정해주세요.",
+      }),
+      {
+        status: 503,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       },
-    });
-    return json(
-      { success: true, post: mapBoardRecord(record) },
-      200,
-      request,
-      env,
     );
   }
 
-  // Single post by slug
-  if (slug) {
-    const filter = encodeURIComponent(`{슬러그}="${slug}"`);
-    const res = await airtableFetch(env, tableId, {
-      params: `?filterByFormula=${filter}&maxRecords=1`,
-    });
-    if (!res.ok)
-      return json({ success: false, error: "조회 실패" }, 500, request, env);
-    const data = await res.json();
-    if (!data.records || data.records.length === 0) {
-      return json(
-        { success: false, error: "게시글을 찾을 수 없습니다" },
-        404,
-        request,
-        env,
-      );
-    }
-    const record = data.records[0];
-    await airtableFetch(env, tableId, {
-      method: "PATCH",
-      recordId: record.id,
-      body: {
-        fields: { 조회수: (record.fields["조회수"] || 0) + 1 },
-        typecast: true,
-      },
-    });
-    return json(
-      { success: true, post: mapBoardRecord(record) },
-      200,
-      request,
-      env,
-    );
-  }
-
-  // List
-  let params = `?sort[0][field]=${encodeURIComponent("작성일")}&sort[0][direction]=desc&pageSize=100`;
-  if (!admin) {
-    params += `&filterByFormula=${encodeURIComponent("{게시여부}=TRUE()")}`;
-  }
-  const res = await airtableFetch(env, tableId, { params });
-  if (!res.ok)
-    return json({ success: false, error: "목록 조회 실패" }, 500, request, env);
-  const data = await res.json();
-  const posts = (data.records || []).map(mapBoardRecord);
-  return json({ success: true, posts }, 200, request, env);
-}
-
-async function handleCreateBoard(request, env) {
-  const authErr = requireAuth(request);
-  if (authErr)
-    return json({ error: authErr.error }, authErr.status, request, env);
-
-  const body = await request.json();
-  const fields = {
-    제목: body.제목 || body.title || "",
-    요약: body.요약 || body.summary || "",
-    내용: body.내용 || body.content || "",
-    카테고리: body.카테고리 || body.category || "",
-    태그: body.태그 || body.tags || "",
-    작성일: body.작성일 || body.date || new Date().toISOString().split("T")[0],
-    게시여부:
-      body.게시여부 !== undefined
-        ? body.게시여부
-        : body.isPublic !== undefined
-          ? body.isPublic
-          : true,
-    썸네일URL: body.썸네일URL || body.thumbnailUrl || "",
-    조회수: 0,
-    슬러그: body.슬러그 || body.slug || "",
-  };
-
-  const res = await airtableFetch(env, env.AIRTABLE_BOARD_TABLE_ID, {
-    method: "POST",
-    body: { records: [{ fields }], typecast: true },
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    return json(
-      { success: false, error: "생성 실패", detail: err },
-      500,
-      request,
-      env,
-    );
-  }
-  const data = await res.json();
-  return json(
-    { success: true, post: mapBoardRecord(data.records[0]) },
-    201,
-    request,
-    env,
-  );
-}
-
-async function handleUpdateBoard(request, env) {
-  const authErr = requireAuth(request);
-  if (authErr)
-    return json({ error: authErr.error }, authErr.status, request, env);
-
-  const body = await request.json();
-  if (!body.id) return json({ error: "id가 필요합니다" }, 400, request, env);
-
-  const fields = {};
-  if (body.제목 !== undefined || body.title !== undefined)
-    fields["제목"] = body.제목 || body.title;
-  if (body.요약 !== undefined || body.summary !== undefined)
-    fields["요약"] = body.요약 || body.summary;
-  if (body.내용 !== undefined || body.content !== undefined)
-    fields["내용"] = body.내용 || body.content;
-  if (body.카테고리 !== undefined || body.category !== undefined)
-    fields["카테고리"] = body.카테고리 || body.category;
-  if (body.태그 !== undefined || body.tags !== undefined)
-    fields["태그"] = body.태그 || body.tags;
-  if (body.작성일 !== undefined || body.date !== undefined)
-    fields["작성일"] = body.작성일 || body.date;
-  if (body.게시여부 !== undefined) fields["게시여부"] = body.게시여부;
-  if (body.isPublic !== undefined) fields["게시여부"] = body.isPublic;
-  if (body.썸네일URL !== undefined || body.thumbnailUrl !== undefined)
-    fields["썸네일URL"] = body.썸네일URL || body.thumbnailUrl;
-  if (body.슬러그 !== undefined || body.slug !== undefined)
-    fields["슬러그"] = body.슬러그 || body.slug;
-
-  const res = await airtableFetch(env, env.AIRTABLE_BOARD_TABLE_ID, {
-    method: "PATCH",
-    recordId: body.id,
-    body: { fields, typecast: true },
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    return json(
-      { success: false, error: "수정 실패", detail: err },
-      500,
-      request,
-      env,
-    );
-  }
-  const data = await res.json();
-  return json({ success: true, post: mapBoardRecord(data) }, 200, request, env);
-}
-
-async function handleDeleteBoard(request, env) {
-  const authErr = requireAuth(request);
-  if (authErr)
-    return json({ error: authErr.error }, authErr.status, request, env);
-
-  const body = await request.json();
-  if (!body.id) return json({ error: "id가 필요합니다" }, 400, request, env);
-
-  // R2 이미지 삭제를 위해 먼저 레코드 조회
-  const getRes = await airtableFetch(env, env.AIRTABLE_BOARD_TABLE_ID, {
-    recordId: body.id,
-  });
-  if (getRes.ok) {
-    const record = await getRes.json();
-    await deleteR2Image(env, record.fields?.["썸네일URL"]);
-  }
-
-  const res = await airtableFetch(env, env.AIRTABLE_BOARD_TABLE_ID, {
-    method: "DELETE",
-    recordId: body.id,
-  });
-
-  if (!res.ok)
-    return json({ success: false, error: "삭제 실패" }, 500, request, env);
-  return json({ success: true }, 200, request, env);
-}
-
-// ===== Employees Handlers =====
-function mapEmployeeRecord(r) {
-  return {
-    id: r.id,
-    이름: r.fields["이름"] || "",
-    직책: r.fields["직책"] || "",
-    소개: r.fields["소개"] || "",
-    순서: r.fields["순서"] || 0,
-    공개여부: r.fields["공개여부"] || false,
-    프로필이미지URL: r.fields["프로필이미지URL"] || "",
-    이미지위치: r.fields["이미지위치"] || "center 20%",
-    자금유형: r.fields["자금유형"] || "",
-    업무영역: r.fields["업무영역"] || "",
-    산업분야: r.fields["산업분야"] || "",
-  };
-}
-
-async function handleGetEmployees(request, env) {
-  const url = new URL(request.url);
-  const admin = url.searchParams.get("admin") === "true";
-
-  if (admin) {
-    const authErr = requireAuth(request);
-    if (authErr)
-      return json({ error: authErr.error }, authErr.status, request, env);
-  }
-
-  let params = `?sort[0][field]=${encodeURIComponent("순서")}&sort[0][direction]=asc&pageSize=100`;
-  if (!admin) {
-    params += `&filterByFormula=${encodeURIComponent("{공개여부}=TRUE()")}`;
-  }
-
-  const res = await airtableFetch(env, env.AIRTABLE_EMPLOYEES_TABLE_ID, {
-    params,
-  });
-  if (!res.ok)
-    return json({ success: false, error: "조회 실패" }, 500, request, env);
-  const data = await res.json();
-  const employees = (data.records || []).map(mapEmployeeRecord);
-  return json({ success: true, employees }, 200, request, env);
-}
-
-async function handleCreateEmployee(request, env) {
-  const authErr = requireAuth(request);
-  if (authErr)
-    return json({ error: authErr.error }, authErr.status, request, env);
-
-  const body = await request.json();
-  const fields = {
-    이름: body.이름 || "",
-    직책: body.직책 || "",
-    소개: body.소개 || "",
-    순서: body.순서 || 0,
-    공개여부: body.공개여부 !== undefined ? body.공개여부 : true,
-    프로필이미지URL: body.프로필이미지URL || "",
-    이미지위치: body.이미지위치 || "center 20%",
-    자금유형: body.자금유형 || "",
-    업무영역: body.업무영역 || "",
-    산업분야: body.산업분야 || "",
-  };
-
-  const res = await airtableFetch(env, env.AIRTABLE_EMPLOYEES_TABLE_ID, {
-    method: "POST",
-    body: { records: [{ fields }], typecast: true },
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    return json(
-      { success: false, error: "생성 실패", detail: err },
-      500,
-      request,
-      env,
-    );
-  }
-  const data = await res.json();
-  return json(
-    { success: true, employee: mapEmployeeRecord(data.records[0]) },
-    201,
-    request,
-    env,
-  );
-}
-
-async function handleUpdateEmployee(request, env) {
-  const authErr = requireAuth(request);
-  if (authErr)
-    return json({ error: authErr.error }, authErr.status, request, env);
-
-  const body = await request.json();
-  if (!body.id) return json({ error: "id가 필요합니다" }, 400, request, env);
-
-  const fields = {};
-  if (body.이름 !== undefined) fields["이름"] = body.이름;
-  if (body.직책 !== undefined) fields["직책"] = body.직책;
-  if (body.소개 !== undefined) fields["소개"] = body.소개;
-  if (body.순서 !== undefined) fields["순서"] = body.순서;
-  if (body.공개여부 !== undefined) fields["공개여부"] = body.공개여부;
-  if (body.프로필이미지URL !== undefined)
-    fields["프로필이미지URL"] = body.프로필이미지URL;
-  if (body.이미지위치 !== undefined) fields["이미지위치"] = body.이미지위치;
-  if (body.자금유형 !== undefined) fields["자금유형"] = body.자금유형;
-  if (body.업무영역 !== undefined) fields["업무영역"] = body.업무영역;
-  if (body.산업분야 !== undefined) fields["산업분야"] = body.산업분야;
-
-  const res = await airtableFetch(env, env.AIRTABLE_EMPLOYEES_TABLE_ID, {
-    method: "PATCH",
-    recordId: body.id,
-    body: { fields, typecast: true },
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    return json(
-      { success: false, error: "수정 실패", detail: err },
-      500,
-      request,
-      env,
-    );
-  }
-  const data = await res.json();
-  return json(
-    { success: true, employee: mapEmployeeRecord(data) },
-    200,
-    request,
-    env,
-  );
-}
-
-async function handleDeleteEmployee(request, env) {
-  const authErr = requireAuth(request);
-  if (authErr)
-    return json({ error: authErr.error }, authErr.status, request, env);
-
-  const body = await request.json();
-  if (!body.id) return json({ error: "id가 필요합니다" }, 400, request, env);
-
-  const getRes = await airtableFetch(env, env.AIRTABLE_EMPLOYEES_TABLE_ID, {
-    recordId: body.id,
-  });
-  if (getRes.ok) {
-    const record = await getRes.json();
-    await deleteR2Image(env, record.fields?.["프로필이미지URL"]);
-  }
-
-  const res = await airtableFetch(env, env.AIRTABLE_EMPLOYEES_TABLE_ID, {
-    method: "DELETE",
-    recordId: body.id,
-  });
-
-  if (!res.ok)
-    return json({ success: false, error: "삭제 실패" }, 500, request, env);
-  return json({ success: true }, 200, request, env);
-}
-
-// ===== Popups Handlers =====
-function mapPopupRecord(r) {
-  return {
-    id: r.id,
-    title: r.fields["title"] || "",
-    altText: r.fields["altText"] || "",
-    imageUrl: r.fields["imageUrl"] || "",
-    linkUrl: r.fields["linkUrl"] || "",
-    linkTarget: r.fields["linkTarget"] || "_self",
-    order: r.fields["order"] || 0,
-    isActive: r.fields["isActive"] || false,
-    startDate: r.fields["startDate"] || null,
-    endDate: r.fields["endDate"] || null,
-  };
-}
-
-async function handleGetPopups(request, env) {
-  const url = new URL(request.url);
-  const admin = url.searchParams.get("admin") === "true";
-
-  if (admin) {
-    const authErr = requireAuth(request);
-    if (authErr)
-      return json({ error: authErr.error }, authErr.status, request, env);
-  }
-
-  let params = `?sort[0][field]=order&sort[0][direction]=asc&pageSize=100`;
-  if (!admin) {
-    params += `&filterByFormula={isActive}=TRUE()`;
-  }
-
-  const res = await airtableFetch(env, env.AIRTABLE_POPUPS_TABLE_ID, {
-    params,
-  });
-  if (!res.ok)
-    return json({ success: false, error: "조회 실패" }, 500, request, env);
-  const data = await res.json();
-  const popups = (data.records || []).map(mapPopupRecord);
-  return json({ success: true, popups }, 200, request, env);
-}
-
-async function handleCreatePopup(request, env) {
-  const authErr = requireAuth(request);
-  if (authErr)
-    return json({ error: authErr.error }, authErr.status, request, env);
-
-  const body = await request.json();
-  const fields = {
-    title: body.title || "",
-    altText: body.altText || "",
-    imageUrl: body.imageUrl || "",
-    linkUrl: body.linkUrl || "",
-    linkTarget: body.linkTarget || "_self",
-    order: body.order || 1,
-    isActive: body.isActive !== undefined ? body.isActive : true,
-    startDate: body.startDate || "",
-    endDate: body.endDate || "",
-  };
-
-  const res = await airtableFetch(env, env.AIRTABLE_POPUPS_TABLE_ID, {
-    method: "POST",
-    body: { records: [{ fields }], typecast: true },
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    return json(
-      { success: false, error: "생성 실패", detail: err },
-      500,
-      request,
-      env,
-    );
-  }
-  const data = await res.json();
-  return json(
-    { success: true, popup: mapPopupRecord(data.records[0]) },
-    201,
-    request,
-    env,
-  );
-}
-
-async function handleUpdatePopup(request, env) {
-  const authErr = requireAuth(request);
-  if (authErr)
-    return json({ error: authErr.error }, authErr.status, request, env);
-
-  const body = await request.json();
-  if (!body.id) return json({ error: "id가 필요합니다" }, 400, request, env);
-
-  const fields = {};
-  if (body.title !== undefined) fields.title = body.title;
-  if (body.altText !== undefined) fields.altText = body.altText;
-  if (body.imageUrl !== undefined) fields.imageUrl = body.imageUrl;
-  if (body.linkUrl !== undefined) fields.linkUrl = body.linkUrl;
-  if (body.linkTarget !== undefined) fields.linkTarget = body.linkTarget;
-  if (body.order !== undefined) fields.order = body.order;
-  if (body.isActive !== undefined) fields.isActive = body.isActive;
-  if (body.startDate !== undefined) fields.startDate = body.startDate;
-  if (body.endDate !== undefined) fields.endDate = body.endDate;
-
-  const res = await airtableFetch(env, env.AIRTABLE_POPUPS_TABLE_ID, {
-    method: "PATCH",
-    recordId: body.id,
-    body: { fields, typecast: true },
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    return json(
-      { success: false, error: "수정 실패", detail: err },
-      500,
-      request,
-      env,
-    );
-  }
-  const data = await res.json();
-  return json(
-    { success: true, popup: mapPopupRecord(data) },
-    200,
-    request,
-    env,
-  );
-}
-
-async function handleDeletePopup(request, env) {
-  const authErr = requireAuth(request);
-  if (authErr)
-    return json({ error: authErr.error }, authErr.status, request, env);
-
-  const body = await request.json();
-  if (!body.id) return json({ error: "id가 필요합니다" }, 400, request, env);
-
-  const getRes = await airtableFetch(env, env.AIRTABLE_POPUPS_TABLE_ID, {
-    recordId: body.id,
-  });
-  if (getRes.ok) {
-    const record = await getRes.json();
-    await deleteR2Image(env, record.fields?.["imageUrl"]);
-  }
-
-  const res = await airtableFetch(env, env.AIRTABLE_POPUPS_TABLE_ID, {
-    method: "DELETE",
-    recordId: body.id,
-  });
-
-  if (!res.ok)
-    return json({ success: false, error: "삭제 실패" }, 500, request, env);
-  return json({ success: true }, 200, request, env);
-}
-
-// Telegram helper
-async function sendTelegram(token, chatId, text) {
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const accessToken = await getGoogleAccessToken(env);
+    const propertyId = env.GA_PROPERTY_ID;
+
+    // GET /analytics/all?period=7 or period=daily/weekly/monthly
+    if (path === "/analytics/all") {
+      const rawPeriod = url.searchParams.get("period") || "7";
+      const periodMap = { daily: 1, weekly: 7, monthly: 30 };
+      const period = periodMap[rawPeriod] || parseInt(rawPeriod) || 7;
+      const startDate = daysAgoDate(period);
+      const endDate = daysAgoDate(0);
+      const prevStartDate = daysAgoDate(period * 2);
+      const prevEndDate = daysAgoDate(period + 1);
+
+      // 병렬 리포트 요청
+      const [overview, pages, sources, devices, trend, prevOverview] =
+        await Promise.all([
+          // 1. 개요 (방문자수, 페이지뷰, 세션, 이벤트수, 평균세션시간)
+          ga4RunReport(accessToken, propertyId, {
+            dateRanges: [{ startDate, endDate }],
+            metrics: [
+              { name: "activeUsers" },
+              { name: "screenPageViews" },
+              { name: "sessions" },
+              { name: "eventCount" },
+              { name: "averageSessionDuration" },
+              { name: "newUsers" },
+              { name: "bounceRate" },
+            ],
+          }),
+          // 2. 인기 페이지
+          ga4RunReport(accessToken, propertyId, {
+            dateRanges: [{ startDate, endDate }],
+            dimensions: [{ name: "pagePath" }, { name: "pageTitle" }],
+            metrics: [{ name: "screenPageViews" }, { name: "activeUsers" }],
+            orderBys: [
+              { metric: { metricName: "screenPageViews" }, desc: true },
+            ],
+            limit: 10,
+          }),
+          // 3. 유입 소스
+          ga4RunReport(accessToken, propertyId, {
+            dateRanges: [{ startDate, endDate }],
+            dimensions: [{ name: "sessionSource" }],
+            metrics: [{ name: "sessions" }, { name: "activeUsers" }],
+            orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+            limit: 10,
+          }),
+          // 4. 디바이스
+          ga4RunReport(accessToken, propertyId, {
+            dateRanges: [{ startDate, endDate }],
+            dimensions: [{ name: "deviceCategory" }],
+            metrics: [{ name: "activeUsers" }, { name: "sessions" }],
+            orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+          }),
+          // 5. 일별 추이
+          ga4RunReport(accessToken, propertyId, {
+            dateRanges: [{ startDate, endDate }],
+            dimensions: [{ name: "date" }],
+            metrics: [
+              { name: "activeUsers" },
+              { name: "screenPageViews" },
+              { name: "sessions" },
+            ],
+            orderBys: [{ dimension: { dimensionName: "date" }, desc: false }],
+          }),
+          // 6. 이전 기간 개요 (비교용)
+          ga4RunReport(accessToken, propertyId, {
+            dateRanges: [{ startDate: prevStartDate, endDate: prevEndDate }],
+            metrics: [
+              { name: "activeUsers" },
+              { name: "screenPageViews" },
+              { name: "sessions" },
+              { name: "averageSessionDuration" },
+              { name: "bounceRate" },
+            ],
+          }),
+        ]);
+
+      // 응답 데이터 구성 (대시보드 형식에 맞춤)
+      const getMetricVal = (report, idx) => {
+        const rows = report.rows || [];
+        return rows.length > 0
+          ? parseFloat(rows[0].metricValues[idx].value)
+          : 0;
+      };
+
+      const calcChange = (current, previous) => {
+        if (previous === 0) return current > 0 ? 100 : 0;
+        return Math.round(((current - previous) / previous) * 100);
+      };
+
+      const formatDuration = (seconds) => {
+        const m = Math.floor(seconds / 60);
+        const s = Math.round(seconds % 60);
+        return m > 0 ? `${m}분 ${s}초` : `${s}초`;
+      };
+
+      // 현재/이전 기간 값
+      const curUsers = getMetricVal(overview, 0);
+      const curPageViews = getMetricVal(overview, 1);
+      const curSessions = getMetricVal(overview, 2);
+      const curEventCount = getMetricVal(overview, 3);
+      const curDuration = getMetricVal(overview, 4);
+      const curNewUsers = getMetricVal(overview, 5);
+      const curBounce = getMetricVal(overview, 6);
+
+      const prevUsers = getMetricVal(prevOverview, 0);
+      const prevPageViews = getMetricVal(prevOverview, 1);
+      const prevSessions = getMetricVal(prevOverview, 2);
+      const prevDuration = getMetricVal(prevOverview, 3);
+      const prevBounce = getMetricVal(prevOverview, 4);
+
+      // 트래픽 소스 퍼센트 계산
+      const sourceRows = (sources.rows || []).map((r) => ({
+        source: r.dimensionValues[0].value || "(direct)",
+        sessions: parseInt(r.metricValues[0].value),
+        users: parseInt(r.metricValues[1].value),
+      }));
+      const totalSessions = sourceRows.reduce((sum, s) => sum + s.sessions, 0);
+
+      const result = {
+        period,
+        overview: {
+          visitors: {
+            value: curUsers,
+            change: calcChange(curUsers, prevUsers),
+          },
+          pageviews: {
+            value: curPageViews,
+            change: calcChange(curPageViews, prevPageViews),
+          },
+          duration: {
+            value: formatDuration(curDuration),
+            change: calcChange(curDuration, prevDuration),
+          },
+          bounceRate: {
+            value: Math.round(curBounce * 100),
+            change: calcChange(curBounce, prevBounce),
+          },
+          sessions: curSessions,
+          newUsers: curNewUsers,
+          eventCount: curEventCount,
+        },
+        pages: (pages.rows || []).map((r) => ({
+          path: r.dimensionValues[0].value,
+          title: r.dimensionValues[1].value,
+          views: parseInt(r.metricValues[0].value),
+          users: parseInt(r.metricValues[1].value),
+        })),
+        traffic: {
+          sources: sourceRows.map((s) => ({
+            source: s.source,
+            sessions: s.sessions,
+            percentage:
+              totalSessions > 0
+                ? Math.round((s.sessions / totalSessions) * 100)
+                : 0,
+          })),
+        },
+        sources: sourceRows,
+        devices: (devices.rows || []).map((r) => ({
+          device: r.dimensionValues[0].value,
+          users: parseInt(r.metricValues[0].value),
+          sessions: parseInt(r.metricValues[1].value),
+        })),
+        trend: {
+          trend: (trend.rows || []).map((r) => ({
+            date: r.dimensionValues[0].value,
+            visitors: parseInt(r.metricValues[0].value),
+            pageviews: parseInt(r.metricValues[1].value),
+            sessions: parseInt(r.metricValues[2].value),
+          })),
+        },
+      };
+
+      return new Response(JSON.stringify(result), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // GET /history/cached?days=7 (일별 데이터 — 대시보드 형식)
+    if (path === "/history/cached" || path === "/history/stats") {
+      const days = parseInt(url.searchParams.get("days")) || 7;
+      const startDate = daysAgoDate(days);
+      const endDate = daysAgoDate(0);
+
+      const report = await ga4RunReport(accessToken, propertyId, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: "date" }],
+        metrics: [
+          { name: "activeUsers" },
+          { name: "screenPageViews" },
+          { name: "sessions" },
+          { name: "newUsers" },
+          { name: "averageSessionDuration" },
+          { name: "bounceRate" },
+        ],
+        orderBys: [{ dimension: { dimensionName: "date" }, desc: false }],
+      });
+
+      const data = (report.rows || []).map((r) => {
+        const rawDate = r.dimensionValues[0].value; // YYYYMMDD
+        const formattedDate =
+          rawDate.length === 8
+            ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`
+            : rawDate;
+        return {
+          date: formattedDate,
+          visitors: parseInt(r.metricValues[0].value),
+          pageviews: parseInt(r.metricValues[1].value),
+          sessions: parseInt(r.metricValues[2].value),
+          new_users: parseInt(r.metricValues[3].value),
+          avg_duration: parseFloat(r.metricValues[4].value),
+          bounce_rate: parseFloat(r.metricValues[5].value),
+        };
+      });
+
+      return new Response(JSON.stringify({ data, days }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: "Not found" }), {
+      status: 404,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+}
+
+// ================================================
+// 일별통계 수집 + Airtable 저장 + 텔레그램 리포트
+// ================================================
+
+const STATS_TABLE = encodeURIComponent("일별통계");
+
+function getYesterdayKST() {
+  const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  now.setDate(now.getDate() - 1);
+  return now.toISOString().split("T")[0];
+}
+
+async function collectAndSaveDailyAnalytics(env, overrideDate) {
+  const targetDate = overrideDate || getYesterdayKST();
+  const accessToken = await getGoogleAccessToken(env);
+  const propertyId = env.GA_PROPERTY_ID;
+
+  const [summary, trafficSources, deviceData, topPages] = await Promise.all([
+    ga4RunReport(accessToken, propertyId, {
+      dateRanges: [{ startDate: targetDate, endDate: targetDate }],
+      metrics: [
+        { name: "totalUsers" },
+        { name: "screenPageViews" },
+        { name: "averageSessionDuration" },
+        { name: "bounceRate" },
+        { name: "sessions" },
+        { name: "newUsers" },
+      ],
+    }),
+    ga4RunReport(accessToken, propertyId, {
+      dateRanges: [{ startDate: targetDate, endDate: targetDate }],
+      dimensions: [{ name: "sessionDefaultChannelGroup" }],
+      metrics: [{ name: "sessions" }],
+      orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+      limit: 10,
+    }),
+    ga4RunReport(accessToken, propertyId, {
+      dateRanges: [{ startDate: targetDate, endDate: targetDate }],
+      dimensions: [{ name: "deviceCategory" }],
+      metrics: [{ name: "activeUsers" }],
+      orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+    }),
+    ga4RunReport(accessToken, propertyId, {
+      dateRanges: [{ startDate: targetDate, endDate: targetDate }],
+      dimensions: [{ name: "pagePath" }],
+      metrics: [{ name: "screenPageViews" }],
+      orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
+      limit: 10,
+    }),
+  ]);
+
+  const getVal = (report, idx) => {
+    const rows = report.rows || [];
+    return rows.length > 0 ? parseFloat(rows[0].metricValues[idx].value) : 0;
+  };
+
+  const visitors = getVal(summary, 0);
+  const pageViews = getVal(summary, 1);
+  const avgDuration = Math.round(getVal(summary, 2));
+  const bounceRate = Math.round(getVal(summary, 3) * 100);
+  const sessions = getVal(summary, 4);
+  const newUsers = getVal(summary, 5);
+
+  const totalTrafficSessions = (trafficSources.rows || []).reduce(
+    (s, r) => s + parseInt(r.metricValues[0].value),
+    0,
+  );
+  const trafficArr = (trafficSources.rows || []).map((r) => {
+    const count = parseInt(r.metricValues[0].value);
+    return {
+      source: r.dimensionValues[0].value,
+      count,
+      percent:
+        totalTrafficSessions > 0
+          ? Math.round((count / totalTrafficSessions) * 100)
+          : 0,
+    };
+  });
+
+  const totalDeviceUsers = (deviceData.rows || []).reduce(
+    (s, r) => s + parseInt(r.metricValues[0].value),
+    0,
+  );
+  const deviceArr = (deviceData.rows || []).map((r) => {
+    const count = parseInt(r.metricValues[0].value);
+    return {
+      type: r.dimensionValues[0].value,
+      count,
+      percent:
+        totalDeviceUsers > 0 ? Math.round((count / totalDeviceUsers) * 100) : 0,
+    };
+  });
+
+  const pagesArr = (topPages.rows || []).map((r) => ({
+    path: r.dimensionValues[0].value,
+    views: parseInt(r.metricValues[0].value),
+  }));
+
+  // 당일 접수건 조회
+  let dailyLeads = [];
+  try {
+    const leadsFilter = encodeURIComponent(`{Date}='${targetDate}'`);
+    const leadsRes = await fetch(
+      `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}?filterByFormula=${leadsFilter}&sort[0][field]=Time&sort[0][direction]=asc`,
+      { headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` } },
+    );
+    const leadsData = await leadsRes.json();
+    dailyLeads = (leadsData.records || []).map((r) => ({
+      company: r.fields["Company"] || "-",
+      name: r.fields["Name"] || "-",
+      phone: r.fields["Phone"] || "-",
+      time: r.fields["Time"] || "-",
+      status: r.fields["Status"] || "신규",
+    }));
+  } catch (e) {
+    console.error("접수건 조회 실패:", e.message);
+  }
+
+  // Airtable upsert
+  const fields = {
+    날짜: targetDate,
+    방문자: visitors,
+    페이지뷰: pageViews,
+    세션: sessions,
+    신규방문자: newUsers,
+    평균체류초: avgDuration,
+    이탈률: bounceRate,
+    트래픽소스: JSON.stringify(trafficArr),
+    상위페이지: JSON.stringify(pagesArr),
+    기기분포: JSON.stringify(deviceArr),
+  };
+
+  const filterFormula = encodeURIComponent(`{날짜}='${targetDate}'`);
+  const checkRes = await fetch(
+    `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${STATS_TABLE}?filterByFormula=${filterFormula}`,
+    { headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` } },
+  );
+  const checkData = await checkRes.json();
+
+  let airtableAction;
+  if (checkData.records && checkData.records.length > 0) {
+    const patchRes = await fetch(
+      `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${STATS_TABLE}/${checkData.records[0].id}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${env.AIRTABLE_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ fields }),
+      },
+    );
+    if (!patchRes.ok)
+      throw new Error("Airtable 업데이트 실패: " + (await patchRes.text()));
+    airtableAction = "업데이트";
+  } else {
+    const postRes = await fetch(
+      `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${STATS_TABLE}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.AIRTABLE_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ fields }),
+      },
+    );
+    if (!postRes.ok)
+      throw new Error("Airtable 생성 실패: " + (await postRes.text()));
+    airtableAction = "신규 생성";
+  }
+
+  return {
+    targetDate,
+    visitors,
+    pageViews,
+    sessions,
+    newUsers,
+    avgDuration,
+    bounceRate,
+    trafficArr,
+    pagesArr,
+    deviceArr,
+    dailyLeads,
+    airtableAction,
+  };
+}
+
+async function sendDailyTelegramReport(env, data) {
+  const {
+    targetDate,
+    visitors,
+    pageViews,
+    sessions,
+    newUsers,
+    avgDuration,
+    bounceRate,
+    trafficArr,
+    pagesArr,
+    dailyLeads,
+    airtableAction,
+  } = data;
+  const dur =
+    avgDuration >= 60
+      ? `${Math.floor(avgDuration / 60)}분 ${avgDuration % 60}초`
+      : `${avgDuration}초`;
+
+  let msg = `📊 <b>INFINITES 일별통계</b>\n\n`;
+  msg += `📅 ${targetDate}\n`;
+  msg += `├ 방문자: <b>${visitors}</b>\n`;
+  msg += `├ 페이지뷰: <b>${pageViews}</b>\n`;
+  msg += `├ 세션: ${sessions}\n`;
+  msg += `├ 신규방문: ${newUsers}\n`;
+  msg += `├ 평균체류: ${dur}\n`;
+  msg += `└ 이탈률: ${bounceRate}%\n`;
+
+  if (trafficArr.length > 0) {
+    msg += `\n🔗 <b>유입경로</b>\n`;
+    const top5 = trafficArr.slice(0, 5);
+    top5.forEach((s, i) => {
+      msg += `${i === top5.length - 1 ? "└" : "├"} ${s.source}: ${s.count}회 (${s.percent}%)\n`;
+    });
+  }
+
+  if (pagesArr.length > 0) {
+    msg += `\n📄 <b>상위페이지</b>\n`;
+    const top5 = pagesArr.slice(0, 5);
+    top5.forEach((p, i) => {
+      msg += `${i === top5.length - 1 ? "└" : "├"} ${p.path}: ${p.views}뷰\n`;
+    });
+  }
+
+  if (dailyLeads && dailyLeads.length > 0) {
+    msg += `\n📥 <b>접수현황</b> (${dailyLeads.length}건)\n`;
+    dailyLeads.forEach((l, i) => {
+      const prefix = i === dailyLeads.length - 1 ? "└" : "├";
+      msg += `${prefix} ${l.time} ${l.company} / ${l.name} (${l.status})\n`;
+    });
+  } else {
+    msg += `\n📥 접수: 0건\n`;
+  }
+
+  msg += `\n📋 <a href="https://admin.infinites.co.kr/">관리자 대시보드</a>`;
+
+  await fetch(
+    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+    {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: chatId,
-        text,
+        chat_id: env.TELEGRAM_CHAT_ID,
+        text: msg,
         parse_mode: "HTML",
-        disable_web_page_preview: true,
       }),
-    });
-  } catch (err) {
-    console.error("Telegram send error:", err);
-  }
+    },
+  );
 }
+
+// Airtable에서 저장된 히스토리 조회
+async function getStoredHistory(env, days) {
+  const startDate = daysAgoDate(days);
+  const sortField = encodeURIComponent("날짜");
+  const res = await fetch(
+    `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${STATS_TABLE}?sort[0][field]=${sortField}&sort[0][direction]=asc`,
+    { headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` } },
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(JSON.stringify(data.error));
+  return (data.records || [])
+    .filter((r) => {
+      const d = r.fields["날짜"];
+      return d && d >= startDate;
+    })
+    .map((r) => ({
+      date: (r.fields["날짜"] || "").replace(/-/g, ""),
+      visitors: r.fields["방문자"] || 0,
+      pageViews: r.fields["페이지뷰"] || 0,
+      sessions: r.fields["세션"] || 0,
+      newUsers: r.fields["신규방문자"] || 0,
+      avgDuration: r.fields["평균체류초"] || 0,
+      bounceRate: r.fields["이탈률"] || 0,
+      trafficSources: r.fields["트래픽소스"]
+        ? JSON.parse(r.fields["트래픽소스"])
+        : [],
+      topPages: r.fields["상위페이지"]
+        ? JSON.parse(r.fields["상위페이지"])
+        : [],
+      devices: r.fields["기기분포"] ? JSON.parse(r.fields["기기분포"]) : [],
+    }));
+}
+
+// ================================================
+// 메인 라우터
+// ================================================
+
+export default {
+  async fetch(request, env) {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: CORS_HEADERS });
+    }
+
+    const url = new URL(request.url);
+    const rawPath = url.pathname;
+    const path = rawPath.startsWith("/api") ? rawPath.replace("/api", "") : rawPath;
+
+    try {
+      // OTP 요청
+      if (path === "/auth/otp" && request.method === "POST") {
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+        await env.OTP_KV.put("admin_otp", code, { expirationTtl: 300 });
+
+        const msg = `🔐 <b>INFINITES 관리자 인증</b>\n\n인증번호: <code>${code}</code>\n\n⏱ 5분 내 입력해주세요.`;
+        const tgRes = await fetch(
+          `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: env.TELEGRAM_CHAT_ID,
+              text: msg,
+              parse_mode: "HTML",
+            }),
+          },
+        );
+
+        const tgOk = tgRes.ok;
+        return new Response(
+          JSON.stringify({
+            success: tgOk,
+            error: tgOk ? null : "텔레그램 발송 실패",
+          }),
+          {
+            status: tgOk ? 200 : 500,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // OTP 검증
+      if (path === "/auth" && request.method === "POST") {
+        const { code } = await request.json();
+        const stored = await env.OTP_KV.get("admin_otp");
+
+        if (!stored) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: "인증번호가 만료되었습니다. 다시 요청해주세요.",
+            }),
+            {
+              status: 401,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        if (code !== stored) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: "인증번호가 올바르지 않습니다",
+            }),
+            {
+              status: 401,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        await env.OTP_KV.delete("admin_otp");
+        return new Response(
+          JSON.stringify({
+            success: true,
+            token: crypto.randomUUID(),
+            expiresIn: 24 * 60 * 60 * 1000,
+          }),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+        );
+      }
+
+      // 관리자 이메일 발송 (대시보드 → Worker → Gmail uploadType=media)
+      if (path === "/admin-send-email" && request.method === "POST") {
+        try {
+          const { from, to, subject, html } = await request.json();
+          if (!to || !subject || !html) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: "missing params (to, subject, html)",
+              }),
+              {
+                status: 400,
+                headers: {
+                  ...CORS_HEADERS,
+                  "Content-Type": "application/json",
+                },
+              },
+            );
+          }
+          const accessToken = await getGmailAccessToken(env);
+          const result = await sendGmail(env, accessToken, {
+            from: from || "인피니트 솔루션 <noreply@mail.policy-fund.online>",
+            to,
+            subject,
+            html,
+          });
+          return new Response(
+            JSON.stringify({ success: true, messageId: result.id }),
+            {
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ success: false, error: error.message }),
+            {
+              status: 500,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+      }
+
+      // Gmail access token 발급 (관리자 대시보드에서 직접 Gmail API 호출용)
+      if (path === "/gmail-token" && request.method === "GET") {
+        if (
+          !env.GMAIL_CLIENT_ID ||
+          !env.GMAIL_CLIENT_SECRET ||
+          !env.GMAIL_REFRESH_TOKEN
+        ) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Gmail not configured" }),
+            {
+              status: 500,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+        try {
+          const accessToken = await getGmailAccessToken(env);
+          return new Response(
+            JSON.stringify({ success: true, access_token: accessToken }),
+            {
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ success: false, error: error.message }),
+            {
+              status: 500,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+      }
+
+      // 텔레그램 알림 (관리자 이메일 발송 결과 등)
+      if (path === "/notify" && request.method === "POST") {
+        const { text } = await request.json();
+        if (!text || !env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) {
+          return new Response(
+            JSON.stringify({ success: false, error: "missing params" }),
+            {
+              status: 400,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+        const tgRes = await fetch(
+          `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: env.TELEGRAM_CHAT_ID,
+              text,
+              parse_mode: "HTML",
+            }),
+          },
+        );
+        return new Response(JSON.stringify({ success: tgRes.ok }), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      // 헬스 체크
+      if (path === "/health") {
+        return new Response(
+          JSON.stringify({
+            status: "ok",
+            service: "infinites-api",
+            version: "1.0.0",
+            features: ["submit", "leads", "board"],
+            env_status: {
+              AIRTABLE_TOKEN: !!env.AIRTABLE_TOKEN,
+              AIRTABLE_BASE_ID: !!env.AIRTABLE_BASE_ID,
+              TELEGRAM_BOT_TOKEN: !!env.TELEGRAM_BOT_TOKEN,
+              GMAIL_CLIENT_ID: !!env.GMAIL_CLIENT_ID,
+            },
+          }),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+        );
+      }
+
+      // R2 이미지 서빙 (GET /r2/board/...)
+      if (path.startsWith("/r2/") && request.method === "GET") {
+        if (!env.BUCKET) {
+          return new Response("R2 not configured", { status: 500 });
+        }
+        const objectKey = path.substring(4); // '/r2/board/xxx.webp' → 'board/xxx.webp'
+        const object = await env.BUCKET.get(objectKey);
+        if (!object) {
+          return new Response("Not Found", { status: 404 });
+        }
+        const headers = new Headers();
+        headers.set(
+          "Content-Type",
+          object.httpMetadata?.contentType || "image/webp",
+        );
+        // 이미지는 장기 캐시, HTML 콘텐츠는 짧은 캐시
+        const isHTML = objectKey.endsWith(".html");
+        headers.set(
+          "Cache-Control",
+          isHTML ? "public, max-age=60" : "public, max-age=31536000, immutable",
+        );
+        headers.set("Access-Control-Allow-Origin", "*");
+        return new Response(object.body, { headers });
+      }
+
+      // 콘텐츠 HTML 업로드 (게시글 본문 → R2)
+      if (path === "/upload-content" && request.method === "POST") {
+        if (!env.BUCKET) {
+          return new Response(
+            JSON.stringify({ success: false, error: "R2 bucket not bound" }),
+            {
+              status: 500,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        try {
+          const { html, slug } = await request.json();
+          if (!html) {
+            return new Response(
+              JSON.stringify({ success: false, error: "No html provided" }),
+              {
+                status: 400,
+                headers: {
+                  ...CORS_HEADERS,
+                  "Content-Type": "application/json",
+                },
+              },
+            );
+          }
+
+          const timestamp = Date.now();
+          const randomStr = Math.random().toString(36).substring(2, 8);
+          const safeName = slug || `${timestamp}-${randomStr}`;
+          const fileName = `board/content/${safeName}.html`;
+
+          await env.BUCKET.put(fileName, html, {
+            httpMetadata: { contentType: "text/html; charset=utf-8" },
+          });
+
+          const workerUrl = new URL(request.url);
+          const publicUrl = `${workerUrl.origin}/r2/${fileName}`;
+          return new Response(
+            JSON.stringify({ success: true, url: publicUrl, fileName }),
+            {
+              headers: {
+                ...CORS_HEADERS,
+                "Content-Type": "application/json",
+              },
+            },
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ success: false, error: error.message }),
+            {
+              status: 500,
+              headers: {
+                ...CORS_HEADERS,
+                "Content-Type": "application/json",
+              },
+            },
+          );
+        }
+      }
+
+      // 이미지 업로드
+      if (path === "/upload" && request.method === "POST") {
+        if (!env.BUCKET) {
+          return new Response(
+            JSON.stringify({ success: false, error: "R2 bucket not bound" }),
+            {
+              status: 500,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        const formData = await request.formData();
+        const file = formData.get("file");
+        if (!file) {
+          return new Response(
+            JSON.stringify({ success: false, error: "No file provided" }),
+            {
+              status: 400,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        const timestamp = Date.now();
+        const randomStr = Math.random().toString(36).substring(2, 8);
+        const ext = file.name.split(".").pop() || "webp";
+        const fileName = `board/${timestamp}-${randomStr}.${ext}`;
+
+        const arrayBuffer = await file.arrayBuffer();
+        await env.BUCKET.put(fileName, arrayBuffer, {
+          httpMetadata: { contentType: file.type || "image/webp" },
+        });
+
+        const publicUrl = `https://pub-d4f7fa5a4cb648d48f34274fcba1d283.r2.dev/${fileName}`;
+        return new Response(
+          JSON.stringify({ success: true, url: publicUrl, fileName }),
+          {
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // 문의 접수
+      if (request.method === "POST" && (path === "/" || path === "/submit")) {
+        return await handleSubmit(request, env);
+      }
+
+      // 접수내역
+      if (path === "/leads" || path.startsWith("/leads/")) {
+        return await handleLeadsAPI(request, env, path);
+      }
+
+      // 관련 게시글 API
+      if (path === "/posts/related" && request.method === "GET") {
+        try {
+          const slug = url.searchParams.get("slug") || "";
+          const limit = parseInt(url.searchParams.get("limit")) || 3;
+
+          const airtableResponse = await fetch(
+            `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/board2?sort[0][field]=date&sort[0][direction]=desc`,
+            { headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` } },
+          );
+
+          if (!airtableResponse.ok) {
+            return new Response(JSON.stringify({ posts: [] }), {
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            });
+          }
+
+          const data = await airtableResponse.json();
+          const posts = (data.records || [])
+            .filter((r) => r.fields["slug"] !== slug)
+            .slice(0, limit)
+            .map((r) => ({
+              id: r.id,
+              title: r.fields["title"] || "",
+              summary: r.fields["content"]?.substring(0, 100) || "",
+              category: r.fields["tag"] || "",
+              thumbnail: r.fields["thumbnailUrl"] || "",
+              date: r.fields["date"] || "",
+              slug: r.fields["slug"] || "",
+            }));
+
+          return new Response(JSON.stringify({ posts }), {
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          });
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ posts: [], error: error.message }),
+            {
+              status: 500,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+      }
+
+      // 게시판
+      if (
+        path === "/board" ||
+        path.startsWith("/board/") ||
+        path === "/posts" ||
+        path.startsWith("/posts/")
+      ) {
+        return await handleBoardAPI(request, env, path);
+      }
+
+      // 팝업
+      if (path === "/popups" || path.startsWith("/popups/")) {
+        return await handlePopupsAPI(request, env, path);
+      }
+
+      // 임직원
+      if (path === "/employees" || path.startsWith("/employees/")) {
+        return await handleEmployeesAPI(request, env, path);
+      }
+
+      // GA4 Analytics (실시간)
+      if (path === "/analytics/all" || path.startsWith("/history/")) {
+        return await handleAnalyticsAPI(request, env, url, path);
+      }
+
+      // 저장된 일별통계 조회 (Airtable)
+      if (path === "/analytics/stored") {
+        try {
+          const days = parseInt(url.searchParams.get("days")) || 30;
+          const history = await getStoredHistory(env, days);
+          return new Response(JSON.stringify({ history, days }), {
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // 수동 일별통계 수집 트리거 (테스트용, ?date=YYYY-MM-DD 지원)
+      if (path === "/analytics/collect" && request.method === "POST") {
+        try {
+          const overrideDate = url.searchParams.get("date") || undefined;
+          const data = await collectAndSaveDailyAnalytics(env, overrideDate);
+          await sendDailyTelegramReport(env, data);
+          return new Response(JSON.stringify({ success: true, ...data }), {
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          });
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ success: false, error: error.message }),
+            {
+              status: 500,
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+      }
+
+      // 404
+      return new Response(JSON.stringify({ error: "Not found", path }), {
+        status: 404,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+  },
+
+  // 매일 09:00 KST (00:00 UTC) 크론 트리거
+  async scheduled(event, env, ctx) {
+    try {
+      const data = await collectAndSaveDailyAnalytics(env);
+      await sendDailyTelegramReport(env, data);
+    } catch (error) {
+      const targetDate = getYesterdayKST();
+      await fetch(
+        `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: env.TELEGRAM_CHAT_ID,
+            text: `🚨 <b>INFINITES 일별통계 오류</b>\n\n📅 대상: ${targetDate}\n❌ ${String(error.message || error).substring(0, 500)}`,
+            parse_mode: "HTML",
+          }),
+        },
+      );
+    }
+  },
+};
