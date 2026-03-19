@@ -5367,7 +5367,7 @@
       }
 
       /* 모바일: 하단 바 (Top 버튼) - 네비게이션 바 위에 위치 */
-      .top-bar-mobile {
+      .top-bar-mobile, .top-bar-mobile.visible, .top-bar-mobile.minimized { display: none !important; visibility: hidden !important; } .top-bar-mobile-ORIGINAL {
         display: none;
         position: fixed;
         bottom: 56px; /* 네비게이션 바 높이만큼 위로 */
@@ -5383,7 +5383,7 @@
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         box-shadow: 0 -4px 20px rgba(30, 74, 141, 0.08);
       }
-      .top-bar-mobile.visible {
+      .top-bar-mobile.visible { display: none !important; } .DISABLED-visible {
         opacity: 1;
         visibility: visible;
         transform: translateY(0);

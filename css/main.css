@@ -1,3 +1,4 @@
+.top-bar-mobile, .top-bar-mobile.visible, .top-bar-mobile.minimized, .top-bar-mobile-mini { display: none !important; }
 /* ================================================
    비지니스코칭 메인 사이트 CSS
    경영컨설팅 홈페이지
