@@ -2646,7 +2646,7 @@
         --footer-accent: #e2e8f0;
         --footer-text: rgba(255, 255, 255, 0.9);
         --footer-sub-text: rgba(255, 255, 255, 0.6);
-        --footer-border: #f1f5f9;
+        --footer-border: transparent;
       }
 
       .bizcoach-footer {
@@ -2699,7 +2699,7 @@
         grid-template-columns: 1.2fr 1fr;
         gap: 48px;
         padding: 40px 0;
-        border-bottom: 1px solid var(--footer-border);
+        
       }
 
       .bizcoach-footer .footer-title {
@@ -2811,8 +2811,8 @@
       .bizcoach-footer .footer-bottom {
         padding: 28px 0;
         display: flex;
-        justify-content: space-between;
-        align-items: center;
+        justify-content: flex-start;
+        align-items: flex-start; flex-direction: column;
         gap: 20px;
       }
 
@@ -3311,7 +3311,7 @@
       }
 
       /* 모바일: 하단 바 (Top 버튼) - 네비게이션 바 위에 위치 */
-      .top-bar-mobile {
+      .top-bar-mobile, .top-bar-mobile.visible, .top-bar-mobile.minimized { display: none !important; visibility: hidden !important; } .top-bar-mobile-ORIGINAL {
         display: none;
         position: fixed;
         bottom: 56px; /* 네비게이션 바 높이만큼 위로 */
@@ -3327,7 +3327,7 @@
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         box-shadow: 0 -4px 20px rgba(30, 74, 141, 0.08);
       }
-      .top-bar-mobile.visible {
+      .top-bar-mobile.visible { display: none !important; } .DISABLED-visible {
         opacity: 1;
         visibility: visible;
         transform: translateY(0);
