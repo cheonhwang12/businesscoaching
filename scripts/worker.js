@@ -1,5 +1,5 @@
 // ================================================
-// INFINITES Workers API
+// bizcoaching Workers API
 // 기능: 문의접수 + 게시판 + 접수내역
 // 배포: Cloudflare Workers
 //
@@ -172,7 +172,7 @@ async function sendGmail(env, accessToken, { from, to, subject, html }) {
 // ================================================
 
 async function handleSubmit(request, env) {
-  console.log("📥 INFINITES 문의 접수");
+  console.log("📥 bizcoaching 문의 접수");
 
   const data = await request.json();
   const results = {
@@ -281,11 +281,11 @@ async function handleSubmit(request, env) {
       if (data.customerEmail && data.customerHtml) {
         try {
           await sendGmail(env, accessToken, {
-            from: data.emailFrom || "INFINITES <noreply@infinites.co.kr>",
+            from: data.emailFrom || "bizcoaching <noreply@bizcoaching.co.kr>",
             to: data.customerEmail,
             subject:
               data.customerSubject ||
-              "[INFINITES] 무료진단 신청이 접수되었습니다",
+              "[bizcoaching] 무료진단 신청이 접수되었습니다",
             html: data.customerHtml,
           });
           results.email.customer.success = true;
@@ -306,9 +306,9 @@ async function handleSubmit(request, env) {
         try {
           for (const staffEmail of staffEmails) {
             await sendGmail(env, accessToken, {
-              from: data.emailFrom || "INFINITES <noreply@infinites.co.kr>",
+              from: data.emailFrom || "bizcoaching <noreply@bizcoaching.co.kr>",
               to: staffEmail,
-              subject: data.staffSubject || "[INFINITES] 신규 무료진단 접수",
+              subject: data.staffSubject || "[bizcoaching] 신규 무료진단 접수",
               html: data.staffHtml,
             });
           }
@@ -363,7 +363,7 @@ async function handleSubmit(request, env) {
 
 // Telegram 메시지 생성
 function buildTelegramMessage(fields, submitDate, submitTime) {
-  let msg = "🔔 <b>INFINITES 신규 상담</b>\n\n";
+  let msg = "🔔 <b>bizcoaching 신규 상담</b>\n\n";
   msg += "👤 <b>고객정보</b>\n";
   msg +=
     "├ 기업명: <b>" +
@@ -407,7 +407,7 @@ function buildTelegramMessage(fields, submitDate, submitTime) {
 
   msg += "\n📅 " + submitDate + " " + submitTime;
   msg +=
-    '\n\n📋 <a href="https://admin.infinites.co.kr/leads">접수관리 바로가기</a>';
+    '\n\n📋 <a href="https://admin.bizcoaching.co.kr/leads">접수관리 바로가기</a>';
   return msg;
 }
 
@@ -1814,7 +1814,7 @@ async function sendDailyTelegramReport(env, data) {
       ? `${Math.floor(avgDuration / 60)}분 ${avgDuration % 60}초`
       : `${avgDuration}초`;
 
-  let msg = `📊 <b>INFINITES 일별통계</b>\n\n`;
+  let msg = `📊 <b>bizcoaching 일별통계</b>\n\n`;
   msg += `📅 ${targetDate}\n`;
   msg += `├ 방문자: <b>${visitors}</b>\n`;
   msg += `├ 페이지뷰: <b>${pageViews}</b>\n`;
@@ -1849,7 +1849,7 @@ async function sendDailyTelegramReport(env, data) {
     msg += `\n📥 접수: 0건\n`;
   }
 
-  msg += `\n📋 <a href="https://admin.infinites.co.kr/">관리자 대시보드</a>`;
+  msg += `\n📋 <a href="https://admin.bizcoaching.co.kr/">관리자 대시보드</a>`;
 
   await fetch(
     `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -1918,7 +1918,7 @@ export default {
         const code = String(Math.floor(100000 + Math.random() * 900000));
         await env.OTP_KV.put("admin_otp", code, { expirationTtl: 300 });
 
-        const msg = `🔐 <b>INFINITES 관리자 인증</b>\n\n인증번호: <code>${code}</code>\n\n⏱ 5분 내 입력해주세요.`;
+        const msg = `🔐 <b>bizcoaching 관리자 인증</b>\n\n인증번호: <code>${code}</code>\n\n⏱ 5분 내 입력해주세요.`;
         const tgRes = await fetch(
           `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
           {
@@ -2098,7 +2098,7 @@ export default {
         return new Response(
           JSON.stringify({
             status: "ok",
-            service: "infinites-api",
+            service: "bizcoaching-api",
             version: "1.0.0",
             features: ["submit", "leads", "board"],
             env_status: {
@@ -2384,7 +2384,7 @@ export default {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: env.TELEGRAM_CHAT_ID,
-            text: `🚨 <b>INFINITES 일별통계 오류</b>\n\n📅 대상: ${targetDate}\n❌ ${String(error.message || error).substring(0, 500)}`,
+            text: `🚨 <b>bizcoaching 일별통계 오류</b>\n\n📅 대상: ${targetDate}\n❌ ${String(error.message || error).substring(0, 500)}`,
             parse_mode: "HTML",
           }),
         },
