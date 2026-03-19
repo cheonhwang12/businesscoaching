@@ -4815,7 +4815,7 @@
 
     <script>
       // 비지니스코칭 폼 - Cloudflare Workers 통합 연동
-      const WORKER_URL = "";
+      const WORKER_URL = "https://business-coaching.1bestww.workers.dev";
 
       async function handleConsultSubmit(event) {
         event.preventDefault();
@@ -4992,7 +4992,7 @@
             airtableFields["개인정보 수집및이용동의"] = true;
 
           // Cloudflare Workers로 데이터 전송
-          const response = await fetch(WORKER_URL, {
+          const response = await fetch(WORKER_URL + "/submit", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
